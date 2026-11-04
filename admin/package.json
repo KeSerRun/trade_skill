@@ -8,7 +8,8 @@
     "dev:api": "node --no-warnings server/index.mjs",
     "dev:web": "vite",
     "build": "vite build",
-    "start": "node --no-warnings server/index.mjs"
+    "start": "node --no-warnings server/index.mjs",
+    "start:lan": "powershell -NoProfile -ExecutionPolicy Bypass -File serve-lan.ps1"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

@@ -37,6 +37,37 @@ npm start
 
 然后访问 http://127.0.0.1:8787
 
+## 局域网访问
+
+开发模式：
+
+- Vite 已配置 `host: "0.0.0.0"`，`npm run dev` 后可用 `http://<本机IP>:5173` 访问。
+- API 仍只监听 `127.0.0.1:8787`，由 Vite 的 `/api` 代理转发，不需要把 API 单独暴露到局域网。
+
+生产模式：
+
+```bash
+npm run build
+npm run start:lan
+```
+
+`start:lan` 会把 `HOST=0.0.0.0` 再启动 Node 服务，通过 `http://<本机IP>:8787` 访问。
+
+查看本机局域网 IP：
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' }
+```
+
+放行防火墙（需要管理员 PowerShell）：
+
+```powershell
+New-NetFirewallRule -DisplayName "Fund Admin Dev 5173" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5173 -Profile Private
+New-NetFirewallRule -DisplayName "Fund Admin Prod 8787" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8787 -Profile Private
+```
+
+> 后台没有登录鉴权，只建议在可信局域网开放，不要直接映射到公网。如果确实需要公网访问，请在前面加一层带认证的反向代理。
+
 ## 环境变量
 
 - `PORT`：API 端口，默认 8787
@@ -46,6 +77,6 @@ npm start
 
 ## 注意
 
-- 默认只监听本机，没有登录鉴权；不要直接暴露到公网
+- 默认只监听本机（开发模式仅 Vite 监听 0.0.0.0）；没有登录鉴权，不要直接暴露到公网
 - 管理台只管理模拟盘数据，不会连接真实账户或下单
 - 交易脚本同样读取 `fund.db` 里的规则，场内/场外费率会分别生效
