@@ -651,13 +651,78 @@ body {
   transform: translateY(-4px);
 }
 
+.task-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.task-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.task-time {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.task-time-label {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.task-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.task-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface-soft);
+  border-radius: 12px;
+}
+
+.task-details div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-details span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.task-details strong {
+  font-size: 13px;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
 @media (max-width: 1200px) {
   .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .main-grid,
-  .market-grid {
+  .market-grid,
+  .task-grid {
     grid-template-columns: 1fr;
   }
 

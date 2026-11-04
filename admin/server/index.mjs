@@ -12,6 +12,7 @@ import {
   stateSummary,
   upsertPosition,
 } from "./db.mjs";
+import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, "..");
@@ -276,6 +277,31 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       setRules(db, normalizeRules(body));
       sendJson(res, 200, payload());
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/tasks") {
+      sendJson(res, 200, { ok: true, tasks: await listTasks() });
+      return;
+    }
+
+    if (method === "PUT" && pathname.startsWith("/api/tasks/")) {
+      const name = decodeURIComponent(pathname.slice("/api/tasks/".length));
+      if (!TASKS[name]) throw new HttpError(404, "未知任务");
+      const body = await readBody(req);
+      const tasks = await updateTask(name, {
+        time: body.time === undefined ? undefined : String(body.time),
+        enabled: body.enabled === undefined ? undefined : Boolean(body.enabled),
+      });
+      sendJson(res, 200, { ok: true, tasks });
+      return;
+    }
+
+    if (method === "POST" && pathname.startsWith("/api/tasks/") && pathname.endsWith("/run")) {
+      const name = decodeURIComponent(pathname.slice("/api/tasks/".length, -"/run".length));
+      if (!TASKS[name]) throw new HttpError(404, "未知任务");
+      const tasks = await runTask(name);
+      sendJson(res, 200, { ok: true, tasks });
       return;
     }
 

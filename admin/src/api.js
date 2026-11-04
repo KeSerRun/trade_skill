@@ -24,4 +24,7 @@ export const api = {
   deletePosition: (code) => request(`/positions/${encodeURIComponent(code)}`, { method: "DELETE" }),
   trades: (query = "") => request(`/trades${query}`),
   saveRules: (body) => request("/rules", { method: "PUT", body: JSON.stringify(body) }),
+  tasks: () => request("/tasks"),
+  updateTask: (name, body) => request(`/tasks/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(body) }),
+  runTask: (name) => request(`/tasks/${encodeURIComponent(name)}/run`, { method: "POST" }),
 };
