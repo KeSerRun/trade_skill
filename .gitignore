@@ -1,6 +1,9 @@
 # runtime state and secrets
 .fund-trading/
 
+# personal Command Code taste metadata
+.commandcode/taste/
+
 # frontend dependencies and build output
 admin/node_modules/
 admin/dist/
