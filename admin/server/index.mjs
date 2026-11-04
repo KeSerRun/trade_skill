@@ -156,6 +156,15 @@ function publicNotify(settings) {
   };
 }
 
+function normalizeQueryText(query) {
+  return String(query)
+    .replace(/20\d{2}年\d{0,2}月?/g, "")
+    .replace(/20\d{2}[-/]\d{1,2}([-/]\d{1,2})?/g, "")
+    .replace(/\b20\d{2}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeRuntime(body) {
   return {
     autoExecute: body.autoExecute !== false,
@@ -426,7 +435,7 @@ const server = http.createServer(async (req, res) => {
         benchmark: body.benchmark ? String(body.benchmark).trim() : null,
         sector: body.sector ? String(body.sector).trim() : null,
         queries: Array.isArray(body.queries)
-          ? body.queries.map((query) => String(query).trim()).filter(Boolean)
+          ? body.queries.map(normalizeQueryText).filter(Boolean)
           : [],
         enabled: body.enabled !== false,
         sortOrder: numberField(body.sortOrder ?? 0, "sortOrder", { min: 0 }),

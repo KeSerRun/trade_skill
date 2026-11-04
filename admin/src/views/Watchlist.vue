@@ -228,13 +228,14 @@ async function remove(row) {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="搜索词（每行一条）">
+            <el-form-item label="搜索词（每行一条，无需日期）">
               <el-input
                 v-model="form.queriesText"
                 type="textarea"
                 :rows="4"
-                placeholder="银行板块 分红 资金 2026年11月"
+                placeholder="银行板块 分红 资金"
               />
+              <div class="rule-tip" style="margin-top: 6px">搜索时自动追加当前年月，例如 2026年11月，不需要手写日期。</div>
             </el-form-item>
           </el-col>
           <el-col :span="24">

@@ -73,6 +73,16 @@ function normalizeWatchlist(entry) {
   return entry ?? {};
 }
 
+function withPeriod(query, period) {
+  const cleaned = String(query)
+    .replace(/20\d{2}年\d{0,2}月?/g, "")
+    .replace(/20\d{2}[-/]\d{1,2}([-/]\d{1,2})?/g, "")
+    .replace(/\b20\d{2}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${cleaned} ${period}`.trim();
+}
+
 async function fetchExchangeQuote(code) {
   const secid = `${/^[56]/.test(code) ? 1 : 0}.${code}`;
   const url =
@@ -124,9 +134,11 @@ async function main() {
     const quote = call("fund.mjs", ["quote", item.code, ...(isExchange(item.code) ? ["--exchange"] : [])]);
     const history = call("fund.mjs", ["nav", item.code, "--pages", "8", "--page-size", "20"]);
     const rows = history.ok ? history.rows ?? [] : [];
-    const queries = item.queries?.length
+    const baseQueries = item.queries?.length
       ? item.queries.slice(0, settings.queriesPerFund)
       : (call("news.mjs", ["queries", item.code]).queries ?? []).slice(0, settings.queriesPerFund);
+    const period = `${new Date().getFullYear()}年${new Date().getMonth() + 1}月`;
+    const queries = baseQueries.map((query) => withPeriod(query, period));
     if (!history.ok) errors.push(`${item.code}: ${history.error}`);
 
     const officialToday = closeMode && rows[0]?.date === date;
