@@ -24,8 +24,20 @@ const stateDir = process.env.FUND_TRADE_HOME
 const dbPath = process.env.FUND_TRADE_DB
   ? path.resolve(process.env.FUND_TRADE_DB)
   : path.join(stateDir, "fund.db");
-const port = Number(process.env.PORT || 8787);
-const host = process.env.HOST || "127.0.0.1";
+const portFlag = (() => {
+  const index = process.argv.indexOf("--port");
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  return value && !value.startsWith("--") ? value : true;
+})();
+const hostFlag = (() => {
+  const index = process.argv.indexOf("--host");
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  return value && !value.startsWith("--") ? value : true;
+})();
+const port = Number(portFlag === true ? process.env.PORT || 8787 : portFlag || process.env.PORT || 8787);
+const host = hostFlag === true ? "0.0.0.0" : hostFlag || process.env.HOST || "127.0.0.1";
 
 const db = openDb(dbPath);
 

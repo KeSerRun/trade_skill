@@ -25,35 +25,42 @@ npm install
 npm run dev
 ```
 
-- 前端：http://localhost:5173
-- API：http://127.0.0.1:8787
+- 前端默认：http://localhost:5173
+- 局域网：`npm run dev -- --host 0.0.0.0`，然后访问 `http://<本机IP>:5173`
+- API 默认：http://127.0.0.1:8787
 
 生产模式：
 
 ```bash
 npm run build
-npm start
+npm start                    # 默认只监听 127.0.0.1
+npm start -- --host 0.0.0.0  # 局域网
+# 或
+npm run start:lan
 ```
-
-`npm start` 默认监听 `0.0.0.0:8787`，局域网可访问；只给本机用可以运行 `npm run start:local`。
-
-然后访问 http://127.0.0.1:8787 或 `http://<本机IP>:8787`
 
 ## 局域网访问
 
 开发模式：
 
-- Vite 已配置 `host: "0.0.0.0"`，`npm run dev` 后可用 `http://<本机IP>:5173` 访问。
-- API 仍只监听 `127.0.0.1:8787`，由 Vite 的 `/api` 代理转发，不需要把 API 单独暴露到局域网。
+```bash
+npm run dev -- --host 0.0.0.0
+# 或
+npm run dev:lan
+```
+
+Vite 监听 `0.0.0.0:5173`；API 仍只监听 `127.0.0.1:8787`，由 Vite 的 `/api` 代理转发，不需要把 API 单独暴露到局域网。
 
 生产模式：
 
 ```bash
 npm run build
-npm start
+npm start -- --host 0.0.0.0
+# 或
+npm run start:lan
 ```
 
-`npm start` 会设置 `HOST=0.0.0.0` 启动 Node 服务，通过 `http://<本机IP>:8787` 访问。只想监听本机时用 `npm run start:local`。
+`-- --host` 是 npm 的参数透传，后面的参数会原样交给 Vite 或 Node 服务；只给本机用时不加参数即可。
 
 查看本机局域网 IP：
 

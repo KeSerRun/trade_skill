@@ -4,13 +4,14 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "node scripts/dev.mjs",
     "dev:api": "node --no-warnings server/index.mjs",
     "dev:web": "vite",
+    "dev:lan": "node scripts/dev.mjs --host 0.0.0.0",
     "build": "vite build",
-    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File serve-lan.ps1",
+    "start": "node --no-warnings server/index.mjs",
     "start:local": "node --no-warnings server/index.mjs",
-    "start:lan": "powershell -NoProfile -ExecutionPolicy Bypass -File serve-lan.ps1"
+    "start:lan": "node --no-warnings server/index.mjs --host 0.0.0.0"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -20,7 +21,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
-    "concurrently": "^9.1.2",
     "vite": "^6.0.5"
   }
 }
