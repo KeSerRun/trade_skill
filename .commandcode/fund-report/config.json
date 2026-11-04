@@ -1,0 +1,69 @@
+{
+  "time": "14:30",
+  "model": "",
+  "maxTurns": 60,
+  "reportMaxTurns": 20,
+  "queriesPerFund": 3,
+  "autoExecute": true,
+  "advice": {
+    "enabled": true,
+    "maxBuysPerDay": 1,
+    "maxSellsPerDay": 1,
+    "buyPct": 0.3,
+    "minBuyAmount": 500,
+    "buy": {
+      "stances": ["hot"],
+      "minD20": 0,
+      "maxDistanceFromHigh": 0.08,
+      "minConfidence": "medium"
+    },
+    "sell": {
+      "stances": ["risk"],
+      "stopLossPct": -0.15,
+      "takeProfitPct": 0.3,
+      "exitIfD20Below": -0.05
+    }
+  },
+  "watchlist": [
+    {
+      "code": "006697",
+      "benchmark": "512800",
+      "sector": "银行/红利",
+      "queries": [
+        "华宝银行ETF联接 006697 公告 最新消息",
+        "银行板块 分红 资金 2026年11月",
+        "招商银行 兴业银行 三季报 2026年11月"
+      ]
+    },
+    {
+      "code": "012769",
+      "benchmark": "159869",
+      "sector": "游戏/传媒",
+      "queries": [
+        "华夏动漫游戏ETF联接 012769 公告",
+        "AI短剧 游戏 传媒 板块 2026年11月",
+        "游戏 版号 2026年11月"
+      ]
+    },
+    {
+      "code": "012043",
+      "benchmark": "512690",
+      "sector": "白酒/消费",
+      "queries": [
+        "鹏华酒 012043 公告 最新消息",
+        "白酒 消费 政策 2026年11月",
+        "贵州茅台 五粮液 泸州老窖 2026年11月"
+      ]
+    },
+    {
+      "code": "005658",
+      "benchmark": "510300",
+      "sector": "宽基/沪深300",
+      "queries": [
+        "华夏沪深300ETF联接 005658 公告",
+        "沪深300 资金 2026年11月",
+        "A股 市场 政策 2026年11月"
+      ]
+    }
+  ]
+}

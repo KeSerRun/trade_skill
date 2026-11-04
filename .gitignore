@@ -1,0 +1,21 @@
+# runtime state and secrets
+.fund-trading/
+
+# frontend dependencies and build output
+admin/node_modules/
+admin/dist/
+admin/data/
+
+# logs and temp files
+*.log
+*.tmp
+
+# environment and credentials
+.env
+.env.*
+*.pem
+*.key
+
+# OS files
+.DS_Store
+Thumbs.db
