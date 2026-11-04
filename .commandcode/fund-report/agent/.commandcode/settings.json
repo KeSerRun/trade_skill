@@ -5,14 +5,12 @@
       "powershell",
       "WebFetch",
       "Read(.fund-trading/fund.db)",
-      "Read(.fund-trading/notify.json)",
       "Read(~/.commandcode/**)",
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Read(**/*.pem)",
       "Read(**/*.key)",
       "Edit(.fund-trading/fund.db)",
-      "Edit(.fund-trading/notify.json)",
       "Edit(.commandcode/**)",
       "Edit(.git/**)"
     ]

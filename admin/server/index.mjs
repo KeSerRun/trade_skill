@@ -5,13 +5,19 @@ import { fileURLToPath } from "node:url";
 import {
   deletePosition,
   deleteWatchlist,
+  getAdviceSettings,
+  getAppSettings,
   getMarketMode,
+  getNotifySettings,
   getRules,
   listTrades,
   listWatchlist,
   openDb,
   setAccount,
+  setAdviceSettings,
+  setAppSettings,
   setMarketMode,
+  setNotifySettings,
   setRules,
   stateSummary,
   upsertPosition,
@@ -126,6 +132,85 @@ function watchlistsPayload() {
   return {
     otc: listWatchlist(db, "otc"),
     exchange: listWatchlist(db, "exchange"),
+  };
+}
+
+const STANCES = ["risk", "hot", "mixed", "neutral"];
+const CONFIDENCE_LEVELS = ["low", "medium", "high"];
+const CHANNELS = ["none", "serverchan", "wecom", "pushplus"];
+
+function maskSecret(value) {
+  return value ? `****${value.slice(-4)}` : "";
+}
+
+function publicNotify(settings) {
+  return {
+    channel: settings.channel,
+    titlePrefix: settings.titlePrefix,
+    wecomWebhook: maskSecret(settings.wecomWebhook),
+    serverChanKey: maskSecret(settings.serverChanKey),
+    pushplusToken: maskSecret(settings.pushplusToken),
+    hasWecomWebhook: Boolean(settings.wecomWebhook),
+    hasServerChanKey: Boolean(settings.serverChanKey),
+    hasPushplusToken: Boolean(settings.pushplusToken),
+  };
+}
+
+function normalizeRuntime(body) {
+  return {
+    autoExecute: body.autoExecute !== false,
+    queriesPerFund: numberField(body.queriesPerFund, "queriesPerFund", { min: 1, max: 10 }),
+    maxTurns: numberField(body.maxTurns, "maxTurns", { min: 5, max: 300 }),
+    reportMaxTurns: numberField(body.reportMaxTurns, "reportMaxTurns", { min: 5, max: 200 }),
+    model: String(body.model ?? "").trim().slice(0, 100),
+  };
+}
+
+function normalizeStances(value, field) {
+  if (!Array.isArray(value) || value.length === 0) throw new HttpError(400, `${field} 不能为空`);
+  for (const stance of value) {
+    if (!STANCES.includes(stance)) throw new HttpError(400, `${field} 包含不合法立场`);
+  }
+  return [...new Set(value)];
+}
+
+function normalizeAdvice(body) {
+  if (!CONFIDENCE_LEVELS.includes(body.minConfidence)) {
+    throw new HttpError(400, "minConfidence 不合法");
+  }
+  return {
+    enabled: body.enabled !== false,
+    maxBuysPerDay: numberField(body.maxBuysPerDay, "maxBuysPerDay", { min: 0, max: 10 }),
+    maxSellsPerDay: numberField(body.maxSellsPerDay, "maxSellsPerDay", { min: 0, max: 10 }),
+    buyPct: numberField(body.buyPct, "buyPct", { min: 0, max: 1 }),
+    minBuyAmount: numberField(body.minBuyAmount, "minBuyAmount", { min: 0 }),
+    buyStances: normalizeStances(body.buyStances, "buyStances"),
+    minD20: numberField(body.minD20, "minD20", { min: -1, max: 1 }),
+    maxDistanceFromHigh: numberField(body.maxDistanceFromHigh, "maxDistanceFromHigh", { min: 0, max: 1 }),
+    minConfidence: body.minConfidence,
+    sellStances: normalizeStances(body.sellStances, "sellStances"),
+    stopLossPct: numberField(body.stopLossPct, "stopLossPct", { min: -1, max: 0 }),
+    takeProfitPct: numberField(body.takeProfitPct, "takeProfitPct", { min: 0, max: 1 }),
+    exitIfD20Below: numberField(body.exitIfD20Below, "exitIfD20Below", { min: -1, max: 0 }),
+  };
+}
+
+function normalizeNotify(body) {
+  const channel = String(body.channel ?? "none");
+  if (!CHANNELS.includes(channel)) throw new HttpError(400, "推送通道不合法");
+  const current = getNotifySettings(db);
+  const pickSecret = (value, existing) => {
+    if (typeof value !== "string") return existing;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.startsWith("****")) return existing;
+    return trimmed;
+  };
+  return {
+    channel,
+    wecomWebhook: pickSecret(body.wecomWebhook, current.wecomWebhook),
+    serverChanKey: pickSecret(body.serverChanKey, current.serverChanKey),
+    pushplusToken: pickSecret(body.pushplusToken, current.pushplusToken),
+    titlePrefix: String(body.titlePrefix ?? current.titlePrefix ?? "基金日报").trim().slice(0, 50),
   };
 }
 
@@ -378,6 +463,37 @@ const server = http.createServer(async (req, res) => {
       if (!TASKS[name]) throw new HttpError(404, "未知任务");
       const tasks = await runTask(name);
       sendJson(res, 200, { ok: true, tasks });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/settings") {
+      sendJson(res, 200, {
+        ok: true,
+        runtime: getAppSettings(db),
+        advice: getAdviceSettings(db),
+        notify: publicNotify(getNotifySettings(db)),
+      });
+      return;
+    }
+
+    if (method === "PUT" && pathname === "/api/settings/runtime") {
+      const body = await readBody(req);
+      const runtime = setAppSettings(db, normalizeRuntime(body));
+      sendJson(res, 200, { ok: true, runtime });
+      return;
+    }
+
+    if (method === "PUT" && pathname === "/api/settings/advice") {
+      const body = await readBody(req);
+      const advice = setAdviceSettings(db, normalizeAdvice(body));
+      sendJson(res, 200, { ok: true, advice });
+      return;
+    }
+
+    if (method === "PUT" && pathname === "/api/settings/notify") {
+      const body = await readBody(req);
+      const notify = setNotifySettings(db, normalizeNotify(body));
+      sendJson(res, 200, { ok: true, notify: publicNotify(notify) });
       return;
     }
 

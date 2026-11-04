@@ -39,8 +39,12 @@ if (-not (Test-Path $cli)) {
   exit 1
 }
 
-$config = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "config.json"), [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-if (-not $Model) { $Model = $config.model }
+$settingsOutput = & $node (Join-Path $PSScriptRoot "settings.mjs") --json 2>> $logFile
+$settings = ($settingsOutput | Out-String) | ConvertFrom-Json
+if (-not $settings) {
+  $settings = [pscustomobject]@{ autoExecute = $true; queriesPerFund = 3; maxTurns = 60; reportMaxTurns = 20; model = "" }
+}
+if (-not $Model) { $Model = $settings.model }
 
 function Run-Agent([string]$prompt, [int]$maxTurns, [string]$tag) {
   $cliArgs = @(
@@ -109,12 +113,12 @@ $verdictFile = Join-Path $collectDir "verdicts-$Date.json"
 
 if (-not $SkipAgent) {
   $promptA = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "prompt-a.md"), [System.Text.Encoding]::UTF8)
-  $promptA = $promptA.Replace("{{DATE}}", $Date).Replace("{{COLLECT}}", $collectFile).Replace("{{NEWSDIR}}", $collectDir).Replace("{{QUERIES}}", "$($config.queriesPerFund)")
+  $promptA = $promptA.Replace("{{DATE}}", $Date).Replace("{{COLLECT}}", $collectFile).Replace("{{NEWSDIR}}", $collectDir).Replace("{{QUERIES}}", "$($settings.queriesPerFund)")
   if ($Limit -gt 0) {
     $promptA = $promptA + "`r`nOnly process these fund codes: " + ($codes -join ", ")
   }
   Log "PhaseA: web search start"
-  $phaseA = Run-Agent $promptA ([int]$config.maxTurns) "PhaseA"
+  $phaseA = Run-Agent $promptA ([int]$settings.maxTurns) "PhaseA"
   Log ("PhaseA output: " + ($phaseA -replace "`r?`n", " | "))
 
   $newsScan = Join-Path $skillDir "scripts\news.mjs"
@@ -159,7 +163,7 @@ if ($SkipAgent) {
   $promptB = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "prompt-b.md"), [System.Text.Encoding]::UTF8)
   $promptB = $promptB.Replace("{{DATE}}", $Date).Replace("{{COLLECT}}", $collectFile).Replace("{{VERDICTS}}", $verdictFile).Replace("{{ADVICE}}", $adviceMarkdown)
   Log "PhaseB: compose report"
-  $reportText = Run-Agent $promptB ([int]$config.reportMaxTurns) "PhaseB"
+  $reportText = Run-Agent $promptB ([int]$settings.reportMaxTurns) "PhaseB"
   if (-not $reportText) {
     Log "PhaseB failed, fallback to deterministic render"
     $reportText = (& $node (Join-Path $PSScriptRoot "render.mjs") $collectFile $verdictFile $adviceFile) | Out-String

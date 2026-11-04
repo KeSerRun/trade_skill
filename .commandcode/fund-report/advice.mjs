@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { buyRateFor, loadConfig, sellRateForHoldingDays } from "../skills/fund-trading/scripts/lib/config.mjs";
 import { computeBuyFill, computeSellFill } from "../skills/fund-trading/scripts/lib/trade.mjs";
+import { loadAdviceSettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 import { daysBetween, round } from "../skills/fund-trading/scripts/lib/store.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULTS = {
   enabled: true,
   maxBuysPerDay: 1,
@@ -22,9 +22,32 @@ function merge(base, override) {
   if (!override || typeof override !== "object" || Array.isArray(override)) return override ?? base;
   const out = { ...base };
   for (const [key, value] of Object.entries(override)) {
+    if (value === undefined) continue;
     out[key] = value && typeof value === "object" && !Array.isArray(value) ? merge(base?.[key] ?? {}, value) : value;
   }
   return out;
+}
+
+function adviceFromDb(stored) {
+  return {
+    enabled: stored.enabled,
+    maxBuysPerDay: stored.maxBuysPerDay,
+    maxSellsPerDay: stored.maxSellsPerDay,
+    buyPct: stored.buyPct,
+    minBuyAmount: stored.minBuyAmount,
+    buy: {
+      stances: stored.buyStances,
+      minD20: stored.minD20,
+      maxDistanceFromHigh: stored.maxDistanceFromHigh,
+      minConfidence: stored.minConfidence,
+    },
+    sell: {
+      stances: stored.sellStances,
+      stopLossPct: stored.stopLossPct,
+      takeProfitPct: stored.takeProfitPct,
+      exitIfD20Below: stored.exitIfD20Below,
+    },
+  };
 }
 
 function pct(value, digits = 2) {
@@ -56,8 +79,7 @@ function main() {
   const outPath = process.argv[4];
   const collect = JSON.parse(fs.readFileSync(collectPath, "utf8"));
   const verdicts = verdictPath && fs.existsSync(verdictPath) ? JSON.parse(fs.readFileSync(verdictPath, "utf8")) : {};
-  const reportConfig = JSON.parse(fs.readFileSync(path.join(here, "config.json"), "utf8"));
-  const advice = merge(DEFAULTS, reportConfig.advice ?? {});
+  const advice = merge(DEFAULTS, adviceFromDb(loadAdviceSettings()));
   const risk = loadConfig();
 
   const result = {

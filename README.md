@@ -35,15 +35,14 @@ trade_skill/
 │       ├── run-close.ps1
 │       ├── collect.mjs       advice.mjs   execute.mjs
 │       ├── settle.mjs        render.mjs   report-close.mjs
-│       ├── notify.mjs        prompt-a.md  prompt-b.md
-│       └── config.json       # 关注列表、建议阈值、模型
+│       ├── notify.mjs        settings.mjs  prompt-a.md
+│       └── prompt-b.md
 ├── admin/                    # Vue 3 + Element Plus 管理后台
 │   ├── server/               # Node API + SQLite
 │   ├── src/                  # 前端页面
 │   └── dist/                 # 构建产物
 └── .fund-trading/
-    ├── fund.db               # 唯一交易数据源
-    └── notify.json           # Server酱推送 key
+    └── fund.db               # 唯一交易数据源（含设置与推送配置）
 ```
 
 ## 环境
@@ -75,6 +74,7 @@ npm start        # http://127.0.0.1:8787
 - **交易限制**：场外/场内分别配置最短持有天数、买入费率、赎回费分档；组合层面配置单只上限、总仓位、现金底线、单笔上限
 - **关注列表**：维护场外/场内候选基金、对标 ETF、搜索词、启用状态和排序
 - **定时任务**：查看 14:30 / 15:30 的 Windows 计划任务状态、下次运行、上次结果，支持改时间、启停、立即运行，以及场外 / 场内关注列表切换
+- **系统设置**：策略参数、运行参数、推送通道与密钥
 - **交易记录**：自动/手动成交、费用、实现盈亏、结算状态
 
 后台写入直接落 `fund.db`，定时任务读同一份规则，不需要导入导出。
@@ -106,6 +106,9 @@ Windows 计划任务：
 | `news_verdicts` | 雷点/热点结论与证据 |
 | `watchlist` | 场外 / 场内候选基金、对标 ETF、搜索词、启用和排序 |
 | `meta` | 当前市场模式 `market_mode` 等键值 |
+| `app_settings` | 自动记账、搜索词数、轮数、模型等运行参数 |
+| `advice_settings` | 买入/卖出立场、阈值、仓位、止损止盈 |
+| `notify_settings` | 推送通道、Webhook / Key、标题前缀 |
 
 运行时还会产生 `cache/`（行情缓存）、`collect/`、`reports/`、`logs/`，这些是可删除的缓存和产物，不是交易数据的副本。
 

@@ -1,19 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, "..", "..");
-const stateDir = process.env.FUND_TRADE_HOME ? path.resolve(process.env.FUND_TRADE_HOME) : path.join(root, ".fund-trading");
-const configPath = path.join(stateDir, "notify.json");
-
-function loadConfig() {
-  if (!fs.existsSync(configPath)) {
-    return { channel: "none" };
-  }
-  return JSON.parse(fs.readFileSync(configPath, "utf8"));
-}
+import { loadNotifySettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(`--${name}`);
@@ -64,7 +51,7 @@ function assertOk(body, label, okCodes) {
 }
 
 async function sendWecom(config, title, content) {
-  if (!config.wecomWebhook) throw new Error("notify.json 缺少 wecomWebhook");
+  if (!config.wecomWebhook) throw new Error("推送设置缺少 wecomWebhook");
   const parts = chunkByBytes(`## ${title}\n${content}`, 3800);
   for (const part of parts) {
     const body = await post(config.wecomWebhook, {
@@ -78,7 +65,7 @@ async function sendWecom(config, title, content) {
 }
 
 async function sendServerChan(config, title, content) {
-  if (!config.serverChanKey) throw new Error("notify.json 缺少 serverChanKey");
+  if (!config.serverChanKey) throw new Error("推送设置缺少 serverChanKey");
   const body = await post(`https://sctapi.ftqq.com/${config.serverChanKey}.send`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -89,7 +76,7 @@ async function sendServerChan(config, title, content) {
 }
 
 async function sendPushplus(config, title, content) {
-  if (!config.pushplusToken) throw new Error("notify.json 缺少 pushplusToken");
+  if (!config.pushplusToken) throw new Error("推送设置缺少 pushplusToken");
   const body = await post("https://www.pushplus.plus/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -100,7 +87,7 @@ async function sendPushplus(config, title, content) {
 }
 
 async function main() {
-  const config = loadConfig();
+  const config = loadNotifySettings();
   const test = process.argv.includes("--test");
   const file = arg("file");
   const date = arg("date", new Date().toISOString().slice(0, 10));

@@ -528,6 +528,11 @@ body {
   color: var(--text-2);
 }
 
+.field .el-select,
+.field .el-input {
+  width: 100%;
+}
+
 .limit-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

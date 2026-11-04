@@ -117,6 +117,37 @@ function migrate(db) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
     );
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS advice_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      max_buys_per_day INTEGER NOT NULL DEFAULT 1,
+      max_sells_per_day INTEGER NOT NULL DEFAULT 1,
+      buy_pct REAL NOT NULL DEFAULT 0.3,
+      min_buy_amount REAL NOT NULL DEFAULT 500,
+      buy_stances TEXT NOT NULL DEFAULT '["hot"]',
+      min_d20 REAL NOT NULL DEFAULT 0,
+      max_distance_from_high REAL NOT NULL DEFAULT 0.08,
+      min_confidence TEXT NOT NULL DEFAULT 'medium',
+      sell_stances TEXT NOT NULL DEFAULT '["risk"]',
+      stop_loss_pct REAL NOT NULL DEFAULT -0.15,
+      take_profit_pct REAL NOT NULL DEFAULT 0.3,
+      exit_if_d20_below REAL NOT NULL DEFAULT -0.05,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notify_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      channel TEXT NOT NULL DEFAULT 'none',
+      wecom_webhook TEXT,
+      serverchan_key TEXT,
+      pushplus_token TEXT,
+      title_prefix TEXT NOT NULL DEFAULT '基金日报',
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -142,6 +173,33 @@ function seed(db) {
     db.prepare(
       "INSERT INTO portfolio_rules (id, max_single_position_pct, max_total_position_pct, min_cash_reserve_pct, max_order_amount, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
     ).run(item.maxSinglePositionPct, item.maxTotalPositionPct, item.minCashReservePct, item.maxOrderAmount, now());
+  }
+
+  const appDefaults = {
+    auto_execute: "true",
+    queries_per_fund: "3",
+    max_turns: "60",
+    report_max_turns: "20",
+    model: "",
+  };
+  const insertApp = db.prepare("INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)");
+  for (const [key, value] of Object.entries(appDefaults)) insertApp.run(key, value, now());
+
+  const advice = db.prepare("SELECT COUNT(*) AS n FROM advice_settings").get();
+  if (!advice.n) {
+    db.prepare(
+      `INSERT INTO advice_settings (id, enabled, max_buys_per_day, max_sells_per_day, buy_pct, min_buy_amount,
+        buy_stances, min_d20, max_distance_from_high, min_confidence, sell_stances, stop_loss_pct, take_profit_pct,
+        exit_if_d20_below, updated_at)
+       VALUES (1, 1, 1, 1, 0.3, 500, '["hot"]', 0, 0.08, 'medium', '["risk"]', -0.15, 0.3, -0.05, ?)`,
+    ).run(now());
+  }
+
+  const notify = db.prepare("SELECT COUNT(*) AS n FROM notify_settings").get();
+  if (!notify.n) {
+    db.prepare(
+      "INSERT INTO notify_settings (id, channel, wecom_webhook, serverchan_key, pushplus_token, title_prefix, updated_at) VALUES (1, 'none', '', '', '', '基金日报', ?)",
+    ).run(now());
   }
 }
 
@@ -230,6 +288,116 @@ export function upsertWatchlist(db, item) {
 
 export function deleteWatchlist(db, market, code) {
   return db.prepare("DELETE FROM watchlist WHERE market = ? AND code = ?").run(market, code).changes;
+}
+
+export function getAppSettings(db) {
+  const rows = db.prepare("SELECT key, value FROM app_settings").all();
+  const map = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  return {
+    autoExecute: map.auto_execute !== "false",
+    queriesPerFund: Number(map.queries_per_fund ?? 3),
+    maxTurns: Number(map.max_turns ?? 60),
+    reportMaxTurns: Number(map.report_max_turns ?? 20),
+    model: map.model ?? "",
+  };
+}
+
+export function setAppSettings(db, payload) {
+  const values = {
+    auto_execute: payload.autoExecute === undefined ? undefined : payload.autoExecute ? "true" : "false",
+    queries_per_fund: payload.queriesPerFund === undefined ? undefined : String(payload.queriesPerFund),
+    max_turns: payload.maxTurns === undefined ? undefined : String(payload.maxTurns),
+    report_max_turns: payload.reportMaxTurns === undefined ? undefined : String(payload.reportMaxTurns),
+    model: payload.model === undefined ? undefined : String(payload.model),
+  };
+  const upsert = db.prepare(
+    "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+  );
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) upsert.run(key, value, now());
+  }
+  return getAppSettings(db);
+}
+
+export function getAdviceSettings(db) {
+  const row = db.prepare("SELECT * FROM advice_settings WHERE id = 1").get();
+  if (!row) return null;
+  return {
+    enabled: row.enabled === 1,
+    maxBuysPerDay: row.max_buys_per_day,
+    maxSellsPerDay: row.max_sells_per_day,
+    buyPct: row.buy_pct,
+    minBuyAmount: row.min_buy_amount,
+    buyStances: JSON.parse(row.buy_stances || "[]"),
+    minD20: row.min_d20,
+    maxDistanceFromHigh: row.max_distance_from_high,
+    minConfidence: row.min_confidence,
+    sellStances: JSON.parse(row.sell_stances || "[]"),
+    stopLossPct: row.stop_loss_pct,
+    takeProfitPct: row.take_profit_pct,
+    exitIfD20Below: row.exit_if_d20_below,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function setAdviceSettings(db, payload) {
+  const current = getAdviceSettings(db);
+  const next = { ...current, ...payload };
+  db.prepare(
+    `UPDATE advice_settings SET
+      enabled = ?, max_buys_per_day = ?, max_sells_per_day = ?, buy_pct = ?, min_buy_amount = ?,
+      buy_stances = ?, min_d20 = ?, max_distance_from_high = ?, min_confidence = ?, sell_stances = ?,
+      stop_loss_pct = ?, take_profit_pct = ?, exit_if_d20_below = ?, updated_at = ?
+     WHERE id = 1`,
+  ).run(
+    next.enabled ? 1 : 0,
+    next.maxBuysPerDay,
+    next.maxSellsPerDay,
+    next.buyPct,
+    next.minBuyAmount,
+    JSON.stringify(next.buyStances),
+    next.minD20,
+    next.maxDistanceFromHigh,
+    next.minConfidence,
+    JSON.stringify(next.sellStances),
+    next.stopLossPct,
+    next.takeProfitPct,
+    next.exitIfD20Below,
+    now(),
+  );
+  return getAdviceSettings(db);
+}
+
+export function getNotifySettings(db) {
+  const row = db.prepare("SELECT * FROM notify_settings WHERE id = 1").get();
+  return {
+    channel: row?.channel ?? "none",
+    wecomWebhook: row?.wecom_webhook ?? "",
+    serverChanKey: row?.serverchan_key ?? "",
+    pushplusToken: row?.pushplus_token ?? "",
+    titlePrefix: row?.title_prefix ?? "基金日报",
+    updatedAt: row?.updated_at ?? null,
+  };
+}
+
+export function setNotifySettings(db, payload) {
+  const current = getNotifySettings(db);
+  const next = { ...current, ...payload };
+  db.prepare(
+    `INSERT INTO notify_settings (id, channel, wecom_webhook, serverchan_key, pushplus_token, title_prefix, updated_at)
+     VALUES (1, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET channel = excluded.channel, wecom_webhook = excluded.wecom_webhook,
+       serverchan_key = excluded.serverchan_key, pushplus_token = excluded.pushplus_token,
+       title_prefix = excluded.title_prefix, updated_at = excluded.updated_at`,
+  ).run(
+    next.channel,
+    next.wecomWebhook ?? "",
+    next.serverChanKey ?? "",
+    next.pushplusToken ?? "",
+    next.titlePrefix ?? "基金日报",
+    now(),
+  );
+  return getNotifySettings(db);
 }
 
 export function getAccount(db) {

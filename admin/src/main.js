@@ -10,6 +10,7 @@ import Dashboard from "./views/Dashboard.vue";
 import Positions from "./views/Positions.vue";
 import Rules from "./views/Rules.vue";
 import Watchlist from "./views/Watchlist.vue";
+import Settings from "./views/Settings.vue";
 import Tasks from "./views/Tasks.vue";
 import Trades from "./views/Trades.vue";
 
@@ -20,6 +21,7 @@ const router = createRouter({
     { path: "/positions", component: Positions, meta: { title: "持仓管理", subtitle: "维护场外 / 场内持仓与成本" } },
     { path: "/rules", component: Rules, meta: { title: "交易限制", subtitle: "按市场配置持有天数、费率与仓位上限" } },
     { path: "/watchlist", component: Watchlist, meta: { title: "关注列表", subtitle: "定时任务的场外 / 场内候选基金池" } },
+    { path: "/settings", component: Settings, meta: { title: "系统设置", subtitle: "策略参数、运行参数与推送设置" } },
     { path: "/tasks", component: Tasks, meta: { title: "定时任务", subtitle: "Windows 计划任务状态与执行时间" } },
     { path: "/trades", component: Trades, meta: { title: "交易记录", subtitle: "自动记账与手动成交明细" } },
   ],

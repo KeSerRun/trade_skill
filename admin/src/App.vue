@@ -50,6 +50,10 @@ async function refresh() {
           <el-icon><Collection /></el-icon>
           <span>关注列表</span>
         </el-menu-item>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>系统设置</span>
+        </el-menu-item>
         <el-menu-item index="/tasks">
           <el-icon><Timer /></el-icon>
           <span>定时任务</span>

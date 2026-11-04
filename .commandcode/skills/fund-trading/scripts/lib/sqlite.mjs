@@ -90,6 +90,37 @@ function ensureSchema(handle) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
     );
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS advice_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      max_buys_per_day INTEGER NOT NULL DEFAULT 1,
+      max_sells_per_day INTEGER NOT NULL DEFAULT 1,
+      buy_pct REAL NOT NULL DEFAULT 0.3,
+      min_buy_amount REAL NOT NULL DEFAULT 500,
+      buy_stances TEXT NOT NULL DEFAULT '["hot"]',
+      min_d20 REAL NOT NULL DEFAULT 0,
+      max_distance_from_high REAL NOT NULL DEFAULT 0.08,
+      min_confidence TEXT NOT NULL DEFAULT 'medium',
+      sell_stances TEXT NOT NULL DEFAULT '["risk"]',
+      stop_loss_pct REAL NOT NULL DEFAULT -0.15,
+      take_profit_pct REAL NOT NULL DEFAULT 0.3,
+      exit_if_d20_below REAL NOT NULL DEFAULT -0.05,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notify_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      channel TEXT NOT NULL DEFAULT 'none',
+      wecom_webhook TEXT,
+      serverchan_key TEXT,
+      pushplus_token TEXT,
+      title_prefix TEXT NOT NULL DEFAULT '基金日报',
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -301,6 +332,49 @@ export function loadWatchlist(market) {
     enabled: row.enabled === 1,
     sortOrder: row.sort_order,
   }));
+}
+
+export function loadAppSettings() {
+  const rows = getDb().prepare("SELECT key, value FROM app_settings").all();
+  const map = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  return {
+    autoExecute: map.auto_execute !== "false",
+    queriesPerFund: Number(map.queries_per_fund ?? 3),
+    maxTurns: Number(map.max_turns ?? 60),
+    reportMaxTurns: Number(map.report_max_turns ?? 20),
+    model: map.model ?? "",
+  };
+}
+
+export function loadAdviceSettings() {
+  const row = getDb().prepare("SELECT * FROM advice_settings WHERE id = 1").get();
+  if (!row) return {};
+  return {
+    enabled: row.enabled === 1,
+    maxBuysPerDay: row.max_buys_per_day,
+    maxSellsPerDay: row.max_sells_per_day,
+    buyPct: row.buy_pct,
+    minBuyAmount: row.min_buy_amount,
+    buyStances: JSON.parse(row.buy_stances || "[]"),
+    minD20: row.min_d20,
+    maxDistanceFromHigh: row.max_distance_from_high,
+    minConfidence: row.min_confidence,
+    sellStances: JSON.parse(row.sell_stances || "[]"),
+    stopLossPct: row.stop_loss_pct,
+    takeProfitPct: row.take_profit_pct,
+    exitIfD20Below: row.exit_if_d20_below,
+  };
+}
+
+export function loadNotifySettings() {
+  const row = getDb().prepare("SELECT * FROM notify_settings WHERE id = 1").get();
+  return {
+    channel: row?.channel ?? "none",
+    wecomWebhook: row?.wecom_webhook ?? "",
+    serverChanKey: row?.serverchan_key ?? "",
+    pushplusToken: row?.pushplus_token ?? "",
+    titlePrefix: row?.title_prefix ?? "基金日报",
+  };
 }
 
 export function loadRulesFromDb() {

@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadAppSettings, loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
@@ -12,7 +12,7 @@ const stateDir = process.env.FUND_TRADE_HOME
   ? path.resolve(process.env.FUND_TRADE_HOME)
   : path.join(root, ".fund-trading");
 const collectDir = path.join(stateDir, "collect");
-const config = JSON.parse(fs.readFileSync(path.join(here, "config.json"), "utf8"));
+const closeMode = process.argv.includes("--close");
 
 function call(script, args) {
   const result = spawnSync(process.execPath, [path.join(scriptsDir, script), ...args, "--json"], {
@@ -103,6 +103,7 @@ async function main() {
   const date = process.argv[2] || new Date().toISOString().slice(0, 10);
   const offline = process.argv.includes("--offline");
   const closeMode = process.argv.includes("--close");
+  const settings = loadAppSettings();
   fs.mkdirSync(collectDir, { recursive: true });
 
   const errors = [];
@@ -112,11 +113,7 @@ async function main() {
   const held = account.ok ? (account.holdings ?? []).map((h) => h.code) : [];
   const marketMode = loadMarketMode();
   const dbWatchlist = loadWatchlist(marketMode);
-  const configured = (
-    dbWatchlist.length
-      ? dbWatchlist
-      : config.watchlists?.[marketMode] ?? config.watchlist ?? []
-  ).map(normalizeWatchlist);
+  const configured = dbWatchlist.map(normalizeWatchlist);
   const byCode = new Map();
   for (const item of configured) byCode.set(item.code, item);
   for (const code of held) if (!byCode.has(code)) byCode.set(code, { code });
@@ -128,8 +125,8 @@ async function main() {
     const history = call("fund.mjs", ["nav", item.code, "--pages", "8", "--page-size", "20"]);
     const rows = history.ok ? history.rows ?? [] : [];
     const queries = item.queries?.length
-      ? item.queries.slice(0, config.queriesPerFund ?? 3)
-      : (call("news.mjs", ["queries", item.code]).queries ?? []).slice(0, config.queriesPerFund ?? 3);
+      ? item.queries.slice(0, settings.queriesPerFund)
+      : (call("news.mjs", ["queries", item.code]).queries ?? []).slice(0, settings.queriesPerFund);
     if (!history.ok) errors.push(`${item.code}: ${history.error}`);
 
     const officialToday = closeMode && rows[0]?.date === date;

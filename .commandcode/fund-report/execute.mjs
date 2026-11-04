@@ -5,15 +5,16 @@ import { applyBuy, applySell } from "../skills/fund-trading/scripts/lib/trade.mj
 import { checkBuy, checkSell } from "../skills/fund-trading/scripts/lib/riskcore.mjs";
 import { loadConfig } from "../skills/fund-trading/scripts/lib/config.mjs";
 import { round, today } from "../skills/fund-trading/scripts/lib/store.mjs";
+import { loadAppSettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 import { renderMarkdown } from "./advice.mjs";
 
 function main() {
   const collectPath = process.argv[2];
   const advicePath = process.argv[3];
   const date = process.argv[4] || today();
-  const reportConfig = JSON.parse(fs.readFileSync(new URL("./config.json", import.meta.url), "utf8"));
+  const settings = loadAppSettings();
 
-  if (!reportConfig.autoExecute) {
+  if (!settings.autoExecute) {
     process.stdout.write(`${JSON.stringify({ ok: true, executed: false, note: "autoExecute=false" }, null, 2)}\n`);
     return;
   }
