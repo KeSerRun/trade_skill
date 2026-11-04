@@ -91,7 +91,9 @@ async function main() {
   const test = process.argv.includes("--test");
   const file = arg("file");
   const date = arg("date", new Date().toISOString().slice(0, 10));
-  const title = arg("title", `${config.titlePrefix ?? "基金日报"} ${date}`);
+  const kind = arg("kind", "daily");
+  const defaultTitle = kind === "close" ? `基金收盘 ${date}` : `${config.titlePrefix ?? "基金日报"} ${date}`;
+  const title = arg("title", defaultTitle);
 
   let content;
   if (test) {
@@ -111,7 +113,7 @@ async function main() {
   const sender = senders[channel];
   if (!sender) throw new Error(`未知推送通道: ${channel}`);
   const parts = await sender(config, title, content);
-  process.stdout.write(`${JSON.stringify({ ok: true, channel, sent: true, parts }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ ok: true, channel, sent: true, parts, title }, null, 2)}\n`);
 }
 
 main().catch((error) => {

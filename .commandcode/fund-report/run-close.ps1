@@ -61,7 +61,7 @@ Log "close report written: $reportFile"
 if ($NoPush) {
   Log "NoPush: skip delivery"
 } else {
-  $notifyOutput = & $node (Join-Path $PSScriptRoot "notify.mjs") --file $reportFile --date $Date --title "基金收盘 $Date" 2>> $logFile
+  $notifyOutput = & $node (Join-Path $PSScriptRoot "notify.mjs") --file $reportFile --date $Date --kind close 2>> $logFile
   $notifyExit = $LASTEXITCODE
   Log ("notify exit=$notifyExit " + (($notifyOutput | Out-String).Trim()))
 }
