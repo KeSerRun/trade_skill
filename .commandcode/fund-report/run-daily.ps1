@@ -3,12 +3,16 @@ param(
   [string]$Date = "",
   [switch]$NoPush,
   [switch]$SkipAgent,
+  [switch]$ReuseNews,
   [int]$Limit = 0,
   [string]$Model = ""
 )
 
 $ErrorActionPreference = "Stop"
 $env:NODE_NO_WARNINGS = "1"
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $collectDir = Join-Path $root ".fund-trading\collect"
@@ -71,9 +75,9 @@ function Run-Agent([string]$prompt, [int]$maxTurns, [string]$tag) {
   $result = $null
   foreach ($line in ($joined -split "`r?`n")) {
     $trimmed = $line.Trim()
-    if ($trimmed.StartsWith('{"type":"result"')) {
-      try { $result = $trimmed | ConvertFrom-Json } catch { }
-    }
+    if (-not $trimmed.StartsWith("{")) { continue }
+    try { $candidate = $trimmed | ConvertFrom-Json } catch { continue }
+    if ($candidate.type -eq "result") { $result = $candidate }
   }
   if ($null -eq $result) {
     Log "$tag failed: no result line (exit=$exitCode)"
@@ -111,7 +115,7 @@ Log ("watchlist: " + ($codes -join ", "))
 
 $verdictFile = Join-Path $collectDir "verdicts-$Date.json"
 
-if (-not $SkipAgent) {
+if (-not $SkipAgent -and -not $ReuseNews) {
   $promptA = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "prompt-a.md"), [System.Text.Encoding]::UTF8)
   $promptA = $promptA.Replace("{{DATE}}", $Date).Replace("{{COLLECT}}", $collectFile).Replace("{{NEWSDIR}}", $collectDir).Replace("{{QUERIES}}", "$($settings.queriesPerFund)")
   if ($Limit -gt 0) {
@@ -120,7 +124,10 @@ if (-not $SkipAgent) {
   Log "PhaseA: web search start"
   $phaseA = Run-Agent $promptA ([int]$settings.maxTurns) "PhaseA"
   Log ("PhaseA output: " + ($phaseA -replace "`r?`n", " | "))
+}
 
+if (-not $SkipAgent) {
+  if ($ReuseNews) { Log "ReuseNews: skip web search, reuse existing news files" }
   $newsScan = Join-Path $skillDir "scripts\news.mjs"
   $verdicts = [ordered]@{}
   foreach ($code in $codes) {

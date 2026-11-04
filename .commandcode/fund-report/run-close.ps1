@@ -6,6 +6,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $env:NODE_NO_WARNINGS = "1"
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $collectDir = Join-Path $root ".fund-trading\collect"

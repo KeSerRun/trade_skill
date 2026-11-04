@@ -90,6 +90,14 @@ Windows 计划任务：
 
 两个任务只在开机且已登录时运行；睡眠会尝试唤醒，关机不会补跑。
 
+手动重跑当天任务（复用已抓新闻、不重复推送）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .commandcode\fund-report\run-daily.ps1 -ReuseNews -NoPush
+```
+
+运行日志在 `.fund-trading/logs/`，采集和报告产物在 `.fund-trading/collect/` 与 `.fund-trading/reports/`。
+
 ## 数据存储
 
 `.fund-trading/fund.db` 中的表：
