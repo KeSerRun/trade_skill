@@ -44,6 +44,7 @@ function main() {
         skipped.push({ side: "sell", code: sell.code, reason: check.violations.join("; ") });
         continue;
       }
+      const sellMarket = sell.market ?? account.holdings[sell.code]?.market ?? markets.get(sell.code) ?? "otc";
       applySell(account, {
         code: sell.code,
         shares: sell.shares,
@@ -53,7 +54,7 @@ function main() {
         note: "auto",
       });
       const trade = account.trades[account.trades.length - 1];
-      trade.settled = false;
+      trade.settled = sellMarket !== "otc";
       trade.auto = true;
       trade.adviceDate = advice.date;
       saveAccount(account);
@@ -67,6 +68,7 @@ function main() {
         skipped.push({ side: "buy", code: buy.code, reason: check.violations.join("; ") });
         continue;
       }
+      const buyMarket = buy.market ?? markets.get(buy.code) ?? "otc";
       applyBuy(account, {
         code: buy.code,
         name: buy.name,
@@ -75,11 +77,11 @@ function main() {
         shares: buy.shares,
         fee: buy.fee,
         date,
-        market: markets.get(buy.code) ?? null,
+        market: buyMarket,
         note: "auto",
       });
       const trade = account.trades[account.trades.length - 1];
-      trade.settled = false;
+      trade.settled = buyMarket !== "otc";
       trade.auto = true;
       trade.adviceDate = advice.date;
       saveAccount(account);

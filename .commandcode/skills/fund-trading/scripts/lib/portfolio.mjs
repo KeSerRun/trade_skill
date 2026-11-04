@@ -60,7 +60,10 @@ export function snapshot(account) {
 export async function refreshHoldings(account) {
   for (const holding of Object.values(account.holdings)) {
     try {
-      const quote = await quoteFund(holding.code, { noCache: true });
+      const quote = await quoteFund(holding.code, {
+        noCache: true,
+        prefer: holding.market === "exchange" ? "exchange" : "nav",
+      });
       holding.lastNav = quote.market === "exchange" ? quote.price : quote.nav;
       holding.lastNavDate = quote.date ?? quote.time?.slice(0, 10) ?? today();
       holding.lastChangePct = quote.changePct ?? null;

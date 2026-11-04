@@ -83,7 +83,12 @@ export async function quoteExchange(code) {
   const url =
     `https://push2.eastmoney.com/api/qt/stock/get?secid=${exchangeSecid(code)}` +
     "&fields=f43,f57,f58,f59,f60,f169,f170,f86";
-  const payload = await requestJson(url, { headers: { Referer: "https://quote.eastmoney.com/" } });
+  const response = await fetch(url, {
+    headers: { Referer: "https://quote.eastmoney.com/" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
   const data = payload?.data;
   if (!data || data.f43 === "-" || data.f43 === undefined) return null;
   const scale = 10 ** (data.f59 ?? 3);

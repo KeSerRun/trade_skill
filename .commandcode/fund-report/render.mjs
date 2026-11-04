@@ -77,7 +77,11 @@ function main() {
     }
   }
   lines.push("");
-  lines.push("模拟盘自动执行，非投资建议；场外基金按当日 15:00 净值确认，T+2 可赎回，7 日内赎回费 1.5%。");
+  lines.push(
+    collect.marketMode === "exchange"
+      ? "模拟盘自动执行，非投资建议；场内按实时价成交，T+1 可卖。"
+      : "模拟盘自动执行，非投资建议；场外基金按当日 15:00 净值确认，T+2 可赎回，7 日内赎回费 1.5%。",
+  );
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 

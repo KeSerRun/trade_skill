@@ -25,6 +25,7 @@ export const api = {
   trades: (query = "") => request(`/trades${query}`),
   saveRules: (body) => request("/rules", { method: "PUT", body: JSON.stringify(body) }),
   tasks: () => request("/tasks"),
+  setTradeMode: (mode) => request("/trade-mode", { method: "PUT", body: JSON.stringify({ mode }) }),
   updateTask: (name, body) => request(`/tasks/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(body) }),
   runTask: (name) => request(`/tasks/${encodeURIComponent(name)}/run`, { method: "POST" }),
 };

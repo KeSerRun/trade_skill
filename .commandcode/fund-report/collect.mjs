@@ -109,7 +109,7 @@ async function main() {
   if (!account.ok) errors.push(`account: ${account.error}`);
 
   const held = account.ok ? (account.holdings ?? []).map((h) => h.code) : [];
-  const configured = (config.watchlist ?? []).map(normalizeWatchlist);
+  const configured = (config.watchlists?.[config.marketMode] ?? config.watchlist ?? []).map(normalizeWatchlist);
   const byCode = new Map();
   for (const item of configured) byCode.set(item.code, item);
   for (const code of held) if (!byCode.has(code)) byCode.set(code, { code });
@@ -170,6 +170,7 @@ async function main() {
       sector: item.sector ?? null,
       market: quote.ok ? quote.market ?? null : null,
       price: quote.ok ? (quote.market === "exchange" ? quote.price : quote.nav) ?? null : null,
+      prevClose: quote.ok ? quote.prevClose ?? null : null,
       changePct: quote.ok ? quote.changePct ?? null : null,
       priceDate: quote.ok ? quote.date ?? quote.time?.slice(0, 10) ?? null : null,
       lastNavDate: rows[0]?.date ?? null,
@@ -201,6 +202,7 @@ async function main() {
     ok: true,
     generatedAt: new Date().toISOString(),
     date,
+    marketMode: config.marketMode ?? "otc",
     weekday: new Date().toLocaleDateString("zh-CN", { weekday: "long" }),
     account: account.ok ? account : { ok: false, error: account.error },
     alerts: call("risk.mjs", ["alerts"]),
@@ -215,22 +217,37 @@ async function main() {
     const cash = account.ok ? account.cash ?? 0 : 0;
     const closeHoldings = (account.ok && Array.isArray(account.holdings) ? account.holdings : []).map((holding) => {
       const fund = funds.find((item) => item.code === holding.code);
-      const prevNav = holding.lastNav ?? holding.avgCost ?? 0;
+      const isExchange = holding.market === "exchange";
+      const isNewToday = holding.firstBuyDate === date;
+      const prevNav = isExchange
+        ? isNewToday
+          ? holding.avgCost ?? holding.lastNav ?? 0
+          : fund?.prevClose ?? holding.lastNav ?? holding.avgCost ?? 0
+        : holding.lastNav ?? holding.avgCost ?? 0;
       let nav = prevNav;
       let estimated = false;
       let source = "按最近净值";
-      if (fund?.estimatedNav) {
+      if (isExchange) {
+        nav = fund?.price ?? holding.lastNav ?? prevNav;
+        source = "收盘价";
+      } else if (fund?.estimatedNav) {
         nav = fund.estimatedNav;
         estimated = fund.estimate === true;
         source = fund.estimate ? `按 ${fund.benchmark} 收盘估算` : "官方净值";
       } else if (fund?.estimateNote) {
         source = fund.estimateNote;
       }
-      const value0 = holding.shares * nav;
-      const isNewToday = holding.firstBuyDate === date;
-      const finalNav = isNewToday ? prevNav : nav;
-      const value = isNewToday ? holding.shares * prevNav : value0;
-      const dayPnl = isNewToday ? 0 : holding.shares * (nav - prevNav);
+      if (!isExchange && isNewToday) {
+        nav = prevNav;
+        estimated = false;
+        source = "今日新买入，待 15:00 净值确认，当日盈亏暂不计入";
+      }
+      const value = holding.shares * nav;
+      const dayPnl = isExchange
+        ? holding.shares * (nav - prevNav)
+        : isNewToday
+          ? 0
+          : holding.shares * (nav - prevNav);
       return {
         code: holding.code,
         name: holding.name,
@@ -238,15 +255,15 @@ async function main() {
         cost: holding.cost,
         prevNav,
         prevNavDate: holding.lastNavDate,
-        nav: round(finalNav, 4),
-        changePct: finalNav > 0 ? finalNav / prevNav - 1 : 0,
+        nav: round(nav, 4),
+        changePct: prevNav > 0 ? nav / prevNav - 1 : 0,
         value: round(value, 2),
         pnl: round(value - holding.cost, 2),
         pnlPct: holding.cost > 0 ? (value - holding.cost) / holding.cost : 0,
         dayPnl: round(dayPnl, 2),
-        estimated: isNewToday ? false : estimated,
-        pending: isNewToday,
-        source: isNewToday ? "今日新买入，待 15:00 净值确认，当日盈亏暂不计入" : source,
+        estimated,
+        pending: !isExchange && isNewToday,
+        source,
       };
     });
     const positionEstimate = closeHoldings.reduce((sum, item) => sum + item.value, 0);

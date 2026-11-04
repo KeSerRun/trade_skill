@@ -64,6 +64,7 @@ function main() {
     ok: true,
     generatedAt: new Date().toISOString(),
     date: collect.date,
+    marketMode: collect.marketMode ?? "otc",
     enabled: advice.enabled,
     buys: [],
     sells: [],
@@ -315,10 +316,16 @@ export function renderMarkdown(result) {
   lines.push(
     `汇总：买入 ${result.summary.buys} 笔，卖出 ${result.summary.sells} 笔；操作后总仓位 ${pct(result.summary.positionPct, 1)}，现金 ${money(result.summary.cash)} 元（${pct(result.summary.cashPct, 1)}）。`,
   );
-  lines.push("场外规则：15:00 前提交按当日 15:00 净值确认；T+2 才可赎回；持有不满 7 日赎回费 1.5%。");
+  lines.push(
+    result.marketMode === "exchange"
+      ? "场内规则：交易时段按实时价成交；T+1 可卖；默认无赎回费。"
+      : "场外规则：15:00 前提交按当日 15:00 净值确认；T+2 才可赎回；持有不满 7 日赎回费 1.5%。",
+  );
   lines.push(
     result.executed
-      ? "说明：以上为模拟盘自动执行，不构成投资建议；成交价将在下一交易日按收盘净值结算，盈亏随每日收盘数据更新。"
+      ? result.marketMode === "exchange"
+        ? "说明：以上为模拟盘自动执行，不构成投资建议；场内按成交参考价记账，盈亏随每日收盘价更新。"
+        : "说明：以上为模拟盘自动执行，不构成投资建议；成交价将在下一交易日按收盘净值结算，盈亏随每日收盘数据更新。"
       : "说明：以上为规则触发的建议，不是已成交；持仓变化是按建议成交后的推演，未执行前账户不变。是否执行由你决定，成交后回报我记账。",
   );
   return lines.join("\n");

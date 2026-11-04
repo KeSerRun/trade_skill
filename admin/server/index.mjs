@@ -13,6 +13,7 @@ import {
   upsertPosition,
 } from "./db.mjs";
 import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
+import { getTradeSettings, setTradeMode } from "./report-config.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, "..");
@@ -293,7 +294,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (method === "GET" && pathname === "/api/tasks") {
-      sendJson(res, 200, { ok: true, tasks: await listTasks() });
+      sendJson(res, 200, { ok: true, tasks: await listTasks(), ...getTradeSettings() });
+      return;
+    }
+
+    if (method === "PUT" && pathname === "/api/trade-mode") {
+      const body = await readBody(req);
+      const mode = String(body.mode ?? "");
+      if (mode !== "otc" && mode !== "exchange") throw new HttpError(400, "mode 只能是 otc 或 exchange");
+      sendJson(res, 200, { ok: true, ...setTradeMode(mode) });
       return;
     }
 

@@ -20,6 +20,7 @@ function main() {
   if (!close) throw new Error("缺少 close 数据，请用 collect.mjs --close 生成");
 
   const tag = close.estimatedAny ? "估算" : close.pendingAny ? "含待确认" : "官方";
+  const mode = collect.marketMode ?? "otc";
   const lines = [];
   lines.push(`# 收盘盈亏 ${collect.date}`);
   lines.push("");
@@ -31,7 +32,13 @@ function main() {
     lines.push("- 空仓");
   }
   for (const holding of close.holdings) {
-    const label = holding.estimated ? "估算" : holding.source === "官方净值" ? "官方" : "参考";
+    const label = holding.estimated
+      ? "估算"
+      : holding.source === "官方净值"
+        ? "官方"
+        : holding.source === "收盘价"
+          ? "收盘"
+          : "参考";
     lines.push(`- ${holding.name ?? holding.code}（${holding.code}）：${holding.shares} 份`);
     lines.push(`  昨净值 ${holding.prevNav}（${holding.prevNavDate ?? "-"}）→ 今${label} ${holding.nav}（${pct(holding.changePct)}）`);
     lines.push(`  市值 ${money(holding.value)} 元｜当日盈亏 ${signed(holding.dayPnl)} 元｜累计盈亏 ${signed(holding.pnl)} 元（${pct(holding.pnlPct)}）`);
@@ -39,7 +46,11 @@ function main() {
   }
   lines.push("");
   lines.push("## 说明");
-  lines.push("场外基金官方净值通常晚间公布；15:30 报告用对应 ETF 收盘涨跌估算，下一交易日 14:30 按官方净值结算并更正。");
+  lines.push(
+    mode === "exchange"
+      ? "场内按当日收盘价计算，T+1 可卖；盈亏随每日收盘价更新。"
+      : "场外基金官方净值通常晚间公布；15:30 报告用对应 ETF 收盘涨跌估算，下一交易日 14:30 按官方净值结算并更正。",
+  );
   lines.push("模拟盘自动执行，非投资建议。");
   process.stdout.write(`${lines.join("\n")}\n`);
 }

@@ -6,15 +6,20 @@ import { api } from "../api";
 const tasks = ref([]);
 const loading = ref(false);
 const saving = ref("");
+const mode = ref("otc");
+const watchlists = ref({ otc: [], exchange: [] });
 const forms = reactive({});
 
 const enabledCount = computed(() => tasks.value.filter((task) => task.enabled).length);
+const modeLabel = computed(() => (mode.value === "otc" ? "场外" : "场内"));
 
 async function load() {
   loading.value = true;
   try {
     const data = await api.tasks();
     tasks.value = data.tasks;
+    mode.value = data.mode ?? "otc";
+    watchlists.value = data.watchlists ?? { otc: [], exchange: [] };
     for (const task of data.tasks) {
       forms[task.name] = {
         time: task.time ?? "14:30",
@@ -63,6 +68,23 @@ async function toggle(task) {
   await save(task);
 }
 
+async function switchMode(next) {
+  if (!next || next === mode.value) return;
+  const label = next === "otc" ? "场外" : "场内";
+  try {
+    await ElMessageBox.confirm(
+      `切换为${label}后，下一次 14:30 会使用对应的关注列表和交易规则。已持仓不受影响，确定切换？`,
+      "切换交易市场",
+      { type: "warning", confirmButtonText: "切换", cancelButtonText: "取消" },
+    );
+    await api.setTradeMode(next);
+    await load();
+    ElMessage.success(`已切换为${label}`);
+  } catch (error) {
+    if (error !== "cancel" && error?.message) ElMessage.error(error.message);
+  }
+}
+
 async function runNow(task) {
   try {
     await ElMessageBox.confirm(
@@ -95,9 +117,36 @@ async function runNow(task) {
           <span class="chip-label">调度方式</span>
           <span class="chip-value">Windows 计划任务</span>
         </div>
+        <div class="chip">
+          <span class="chip-label">当前市场</span>
+          <span class="chip-value">{{ modeLabel }}</span>
+        </div>
       </div>
       <el-button @click="load">刷新状态</el-button>
     </div>
+
+    <section class="panel" style="margin-bottom: 16px">
+      <div class="panel-head">
+        <div>
+          <h3>交易市场</h3>
+          <p>切换下一次 14:30 使用的关注列表和交易规则</p>
+        </div>
+        <el-radio-group :model-value="mode" @change="switchMode">
+          <el-radio-button value="otc">场外</el-radio-button>
+          <el-radio-button value="exchange">场内</el-radio-button>
+        </el-radio-group>
+      </div>
+      <div class="panel-body">
+        <div class="mode-funds">
+          <el-tag v-for="fund in watchlists[mode] || []" :key="fund.code" size="large" effect="plain">
+            {{ fund.code }} {{ fund.name || fund.sector || "" }}
+          </el-tag>
+        </div>
+        <div class="rule-tip">
+          当前使用{{ mode === "otc" ? "场外 T+2" : "场内 T+1" }}规则；切换只影响下一次买入候选，已持仓按自身市场规则卖出。
+        </div>
+      </div>
+    </section>
 
     <div v-if="tasks.length" class="task-grid">
       <section v-for="task in tasks" :key="task.name" class="panel task-card">

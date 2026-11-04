@@ -651,6 +651,17 @@ body {
   transform: translateY(-4px);
 }
 
+.mode-funds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mode-funds .el-tag {
+  font-size: 12px;
+}
+
 .task-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
