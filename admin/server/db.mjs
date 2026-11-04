@@ -413,11 +413,6 @@ export function listPositions(db) {
   return db.prepare("SELECT * FROM positions ORDER BY market, code").all().map((row) => ({ ...row }));
 }
 
-export function getPosition(db, code) {
-  const row = db.prepare("SELECT * FROM positions WHERE code = ?").get(code);
-  return row ? { ...row } : null;
-}
-
 export function upsertPosition(db, payload) {
   const shares = Number(payload.shares ?? 0);
   const cost = Number(payload.cost ?? 0);

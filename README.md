@@ -79,7 +79,7 @@ npm start        # http://127.0.0.1:8787
 
 后台写入直接落 `fund.db`，定时任务读同一份规则，不需要导入导出。
 
-局域网访问：开发用 `npm run dev -- --host 0.0.0.0`，生产用 `npm start -- --host 0.0.0.0`（或 `npm run dev:lan` / `npm run start:lan`）。防火墙和注意事项见 `admin/README.md`。
+局域网访问：开发用 `npm run dev -- --host 0.0.0.0`，生产用 `npm start -- --host 0.0.0.0`。防火墙和注意事项见 `admin/README.md`。
 
 ## 定时任务
 

@@ -20,23 +20,6 @@ export function writeJson(file, data) {
   fs.renameSync(tmp, file);
 }
 
-export function appendJsonl(file, record) {
-  ensureDir(path.dirname(file));
-  fs.appendFileSync(file, `${JSON.stringify(record)}\n`, "utf8");
-}
-
-export function readJsonl(file) {
-  try {
-    return fs
-      .readFileSync(file, "utf8")
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line));
-  } catch {
-    return [];
-  }
-}
-
 export function fileAgeMs(file) {
   try {
     return Date.now() - fs.statSync(file).mtimeMs;

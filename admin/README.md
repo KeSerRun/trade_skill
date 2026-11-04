@@ -1,6 +1,6 @@
 # 基金交易台（管理后台）
 
-本地管理台，Vue 3 + Element Plus 界面，所有交易数据只存在一个 SQLite 文件里，不再维护 account.json / config.json 副本。
+本地管理台，Vue 3 + Element Plus 界面，所有交易数据只存在一个 SQLite 文件里，不再维护 JSON 副本。
 
 ## 功能
 
@@ -17,7 +17,6 @@
 - SQLite：`../.fund-trading/fund.db`
 - 账户、持仓、成交、指令、交易规则、净值快照、资讯结论、候选基金池、市场模式、运行参数、策略参数、推送配置全部在这个文件里
 - 14:30 / 15:30 的定时任务和管理后台读写同一个数据库，不需要导入导出
-- 不再生成 `account.json`、`orders.json`、`config.json`、`equity.jsonl`、`notify.json`
 
 ## 运行
 
@@ -37,8 +36,6 @@ npm run dev
 npm run build
 npm start                    # 默认只监听 127.0.0.1
 npm start -- --host 0.0.0.0  # 局域网
-# 或
-npm run start:lan
 ```
 
 ## 局域网访问
@@ -47,8 +44,6 @@ npm run start:lan
 
 ```bash
 npm run dev -- --host 0.0.0.0
-# 或
-npm run dev:lan
 ```
 
 Vite 监听 `0.0.0.0:5173`；API 仍只监听 `127.0.0.1:8787`，由 Vite 的 `/api` 代理转发，不需要把 API 单独暴露到局域网。
@@ -58,8 +53,6 @@ Vite 监听 `0.0.0.0:5173`；API 仍只监听 `127.0.0.1:8787`，由 Vite 的 `/
 ```bash
 npm run build
 npm start -- --host 0.0.0.0
-# 或
-npm run start:lan
 ```
 
 `-- --host` 是 npm 的参数透传，后面的参数会原样交给 Vite 或 Node 服务；只给本机用时不加参数即可。

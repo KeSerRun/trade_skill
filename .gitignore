@@ -7,7 +7,6 @@
 # frontend dependencies and build output
 admin/node_modules/
 admin/dist/
-admin/data/
 
 # logs and temp files
 *.log
