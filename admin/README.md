@@ -35,7 +35,9 @@ npm run build
 npm start
 ```
 
-然后访问 http://127.0.0.1:8787
+`npm start` 默认监听 `0.0.0.0:8787`，局域网可访问；只给本机用可以运行 `npm run start:local`。
+
+然后访问 http://127.0.0.1:8787 或 `http://<本机IP>:8787`
 
 ## 局域网访问
 
@@ -48,10 +50,10 @@ npm start
 
 ```bash
 npm run build
-npm run start:lan
+npm start
 ```
 
-`start:lan` 会把 `HOST=0.0.0.0` 再启动 Node 服务，通过 `http://<本机IP>:8787` 访问。
+`npm start` 会设置 `HOST=0.0.0.0` 启动 Node 服务，通过 `http://<本机IP>:8787` 访问。只想监听本机时用 `npm run start:local`。
 
 查看本机局域网 IP：
 
