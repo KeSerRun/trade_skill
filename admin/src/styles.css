@@ -788,3 +788,32 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar-right {
+    gap: 8px;
+  }
+
+  .db-chip {
+    display: none;
+  }
+
+  .topbar-title {
+    min-width: 0;
+  }
+
+  .topbar-title h1,
+  .topbar-title p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .content {
+    padding: 12px;
+  }
+}
