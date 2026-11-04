@@ -4,16 +4,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   deletePosition,
+  deleteWatchlist,
+  getMarketMode,
   getRules,
   listTrades,
+  listWatchlist,
   openDb,
   setAccount,
+  setMarketMode,
   setRules,
   stateSummary,
   upsertPosition,
+  upsertWatchlist,
 } from "./db.mjs";
 import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
-import { getTradeSettings, setTradeMode } from "./report-config.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, "..");
@@ -115,6 +119,13 @@ function payload() {
       dbPath,
       dbFile: dbPath,
     },
+  };
+}
+
+function watchlistsPayload() {
+  return {
+    otc: listWatchlist(db, "otc"),
+    exchange: listWatchlist(db, "exchange"),
   };
 }
 
@@ -294,7 +305,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (method === "GET" && pathname === "/api/tasks") {
-      sendJson(res, 200, { ok: true, tasks: await listTasks(), ...getTradeSettings() });
+      sendJson(res, 200, {
+        ok: true,
+        tasks: await listTasks(),
+        mode: getMarketMode(db),
+        watchlists: watchlistsPayload(),
+      });
       return;
     }
 
@@ -302,7 +318,46 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const mode = String(body.mode ?? "");
       if (mode !== "otc" && mode !== "exchange") throw new HttpError(400, "mode 只能是 otc 或 exchange");
-      sendJson(res, 200, { ok: true, ...setTradeMode(mode) });
+      setMarketMode(db, mode);
+      sendJson(res, 200, { ok: true, mode, watchlists: watchlistsPayload() });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/watchlist") {
+      sendJson(res, 200, { ok: true, watchlists: watchlistsPayload() });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/watchlist") {
+      const body = await readBody(req);
+      const market = String(body.market ?? "");
+      if (market !== "otc" && market !== "exchange") throw new HttpError(400, "market 只能是 otc 或 exchange");
+      const code = String(body.code ?? "").trim();
+      if (!/^[0-9A-Za-z.]{4,12}$/.test(code)) throw new HttpError(400, "基金代码格式不正确");
+      upsertWatchlist(db, {
+        market,
+        code,
+        name: body.name ? String(body.name).trim() : null,
+        benchmark: body.benchmark ? String(body.benchmark).trim() : null,
+        sector: body.sector ? String(body.sector).trim() : null,
+        queries: Array.isArray(body.queries)
+          ? body.queries.map((query) => String(query).trim()).filter(Boolean)
+          : [],
+        enabled: body.enabled !== false,
+        sortOrder: numberField(body.sortOrder ?? 0, "sortOrder", { min: 0 }),
+      });
+      sendJson(res, 200, { ok: true, watchlists: watchlistsPayload() });
+      return;
+    }
+
+    if (method === "DELETE" && pathname.startsWith("/api/watchlist/")) {
+      const parts = pathname.split("/").filter(Boolean);
+      const market = decodeURIComponent(parts[2] ?? "");
+      const code = decodeURIComponent(parts[3] ?? "");
+      if (market !== "otc" && market !== "exchange") throw new HttpError(400, "market 只能是 otc 或 exchange");
+      if (!code) throw new HttpError(400, "缺少基金代码");
+      deleteWatchlist(db, market, code);
+      sendJson(res, 200, { ok: true, watchlists: watchlistsPayload() });
       return;
     }
 

@@ -46,6 +46,10 @@ async function refresh() {
           <el-icon><SetUp /></el-icon>
           <span>交易限制</span>
         </el-menu-item>
+        <el-menu-item index="/watchlist">
+          <el-icon><Collection /></el-icon>
+          <span>关注列表</span>
+        </el-menu-item>
         <el-menu-item index="/tasks">
           <el-icon><Timer /></el-icon>
           <span>定时任务</span>

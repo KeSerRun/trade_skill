@@ -78,6 +78,18 @@ function ensureSchema(handle) {
       payload TEXT NOT NULL,
       scanned_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS watchlist (
+      code TEXT NOT NULL,
+      market TEXT NOT NULL,
+      name TEXT,
+      benchmark TEXT,
+      sector TEXT,
+      queries TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (market, code)
+    );
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -268,6 +280,27 @@ export function saveVerdictToDb(verdict) {
       "INSERT INTO news_verdicts (code, payload, scanned_at) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET payload = excluded.payload, scanned_at = excluded.scanned_at",
     )
     .run(String(verdict.code), JSON.stringify(verdict), verdict.scannedAt);
+}
+
+export function loadMarketMode() {
+  const row = getDb().prepare("SELECT value FROM meta WHERE key = 'market_mode'").get();
+  return row?.value === "exchange" ? "exchange" : "otc";
+}
+
+export function loadWatchlist(market) {
+  const rows = getDb()
+    .prepare("SELECT * FROM watchlist WHERE market = ? AND enabled = 1 ORDER BY sort_order, code")
+    .all(market);
+  return rows.map((row) => ({
+    code: row.code,
+    market: row.market,
+    name: row.name,
+    benchmark: row.benchmark,
+    sector: row.sector,
+    queries: JSON.parse(row.queries || "[]"),
+    enabled: row.enabled === 1,
+    sortOrder: row.sort_order,
+  }));
 }
 
 export function loadRulesFromDb() {

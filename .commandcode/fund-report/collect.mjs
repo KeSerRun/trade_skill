@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
@@ -109,7 +110,13 @@ async function main() {
   if (!account.ok) errors.push(`account: ${account.error}`);
 
   const held = account.ok ? (account.holdings ?? []).map((h) => h.code) : [];
-  const configured = (config.watchlists?.[config.marketMode] ?? config.watchlist ?? []).map(normalizeWatchlist);
+  const marketMode = loadMarketMode();
+  const dbWatchlist = loadWatchlist(marketMode);
+  const configured = (
+    dbWatchlist.length
+      ? dbWatchlist
+      : config.watchlists?.[marketMode] ?? config.watchlist ?? []
+  ).map(normalizeWatchlist);
   const byCode = new Map();
   for (const item of configured) byCode.set(item.code, item);
   for (const code of held) if (!byCode.has(code)) byCode.set(code, { code });
@@ -202,7 +209,7 @@ async function main() {
     ok: true,
     generatedAt: new Date().toISOString(),
     date,
-    marketMode: config.marketMode ?? "otc",
+    marketMode,
     weekday: new Date().toLocaleDateString("zh-CN", { weekday: "long" }),
     account: account.ok ? account : { ok: false, error: account.error },
     alerts: call("risk.mjs", ["alerts"]),

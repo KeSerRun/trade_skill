@@ -105,6 +105,18 @@ function migrate(db) {
       payload TEXT NOT NULL,
       scanned_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS watchlist (
+      code TEXT NOT NULL,
+      market TEXT NOT NULL,
+      name TEXT,
+      benchmark TEXT,
+      sector TEXT,
+      queries TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (market, code)
+    );
   `);
 }
 
@@ -161,6 +173,63 @@ export function getMeta(db, key) {
 
 export function setMeta(db, key, value) {
   db.prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+}
+
+export function getMarketMode(db) {
+  return getMeta(db, "market_mode") === "exchange" ? "exchange" : "otc";
+}
+
+export function setMarketMode(db, mode) {
+  if (mode !== "otc" && mode !== "exchange") throw new Error("mode 只能是 otc 或 exchange");
+  setMeta(db, "market_mode", mode);
+}
+
+export function listWatchlist(db, market = null) {
+  const rows = market
+    ? db.prepare("SELECT * FROM watchlist WHERE market = ? ORDER BY sort_order, code").all(market)
+    : db.prepare("SELECT * FROM watchlist ORDER BY market, sort_order, code").all();
+  return rows.map((row) => ({
+    code: row.code,
+    market: row.market,
+    name: row.name,
+    benchmark: row.benchmark,
+    sector: row.sector,
+    queries: JSON.parse(row.queries || "[]"),
+    enabled: row.enabled === 1,
+    sortOrder: row.sort_order,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export function upsertWatchlist(db, item) {
+  const market = String(item.market ?? "");
+  if (market !== "otc" && market !== "exchange") throw new Error("market 只能是 otc 或 exchange");
+  const code = String(item.code ?? "").trim();
+  if (!code) throw new Error("缺少基金代码");
+  const queries = Array.isArray(item.queries) ? item.queries.map(String) : [];
+  db.prepare(
+    `INSERT INTO watchlist (code, market, name, benchmark, sector, queries, enabled, sort_order, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(market, code) DO UPDATE SET
+       name = excluded.name, benchmark = excluded.benchmark, sector = excluded.sector,
+       queries = excluded.queries, enabled = excluded.enabled, sort_order = excluded.sort_order,
+       updated_at = excluded.updated_at`,
+  ).run(
+    code,
+    market,
+    item.name ?? null,
+    item.benchmark ?? null,
+    item.sector ?? null,
+    JSON.stringify(queries),
+    item.enabled === false ? 0 : 1,
+    Number(item.sortOrder ?? 0),
+    now(),
+  );
+  return listWatchlist(db, market);
+}
+
+export function deleteWatchlist(db, market, code) {
+  return db.prepare("DELETE FROM watchlist WHERE market = ? AND code = ?").run(market, code).changes;
 }
 
 export function getAccount(db) {
