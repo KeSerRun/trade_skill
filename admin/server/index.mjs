@@ -23,6 +23,7 @@ import {
   setNotifySettings,
   setRules,
   stateSummary,
+  updateProduct,
   upsertPosition,
   upsertWatchlist,
 } from "./db.mjs";
@@ -396,6 +397,26 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (method === "PATCH" && pathname.startsWith("/api/products/")) {
+      const parts = pathname.split("/").filter(Boolean);
+      const market = decodeURIComponent(parts[2] ?? "");
+      const code = decodeURIComponent(parts[3] ?? "");
+      if (!["index", "exchange", "otc"].includes(market)) throw new HttpError(400, "产品市场不合法");
+      if (!code) throw new HttpError(400, "缺少产品代码");
+      const body = await readBody(req);
+      const sector = body.sector ? String(body.sector).trim().slice(0, 50) : "";
+      const benchmark = body.benchmark ? String(body.benchmark).trim() : "";
+      if (benchmark) {
+        const benchmarkKey = `exchange:${benchmark}`;
+        if (!getProductsByKeys(db, [benchmarkKey]).get(benchmarkKey)) {
+          throw new HttpError(400, "对标 ETF 不在产品库中");
+        }
+      }
+      updateProduct(db, { market, code, sector, benchmark });
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/market/stream") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
@@ -537,18 +558,11 @@ const server = http.createServer(async (req, res) => {
       const productKey = `${market}:${code}`;
       const product = getProductsByKeys(db, [productKey]).get(productKey);
       if (!product) throw new HttpError(400, "请先从产品库选择产品");
-      const benchmark = body.benchmark ? String(body.benchmark).trim() : "";
-      if (benchmark) {
-        const benchmarkKey = `exchange:${benchmark}`;
-        if (!getProductsByKeys(db, [benchmarkKey]).get(benchmarkKey)) {
-          throw new HttpError(400, "对标 ETF 不在产品库中");
-        }
-      }
       upsertWatchlist(db, {
         market,
         code,
         name: product.name,
-        benchmark: benchmark || null,
+        benchmark: null,
         sector: body.sector ? String(body.sector).trim() : null,
         queries: Array.isArray(body.queries)
           ? body.queries.map(normalizeQueryText).filter(Boolean)

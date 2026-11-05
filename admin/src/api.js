@@ -27,6 +27,11 @@ export const api = {
   marketNavs: (items) => request(`/market/navs?items=${encodeURIComponent(items.join(","))}`),
   products: (params = {}) => request(`/products?${new URLSearchParams(params)}`),
   syncProducts: () => request("/products/sync", { method: "POST" }),
+  updateProduct: (market, code, body) =>
+    request(`/products/${encodeURIComponent(market)}/${encodeURIComponent(code)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   updateAccount: (body) => request("/account", { method: "PUT", body: JSON.stringify(body) }),
   savePosition: (body) => request("/positions", { method: "POST", body: JSON.stringify(body) }),
   deletePosition: (code) => request(`/positions/${encodeURIComponent(code)}`, { method: "DELETE" }),

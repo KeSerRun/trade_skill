@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadAppSettings, loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadAppSettings, loadMarketMode, loadProductBenchmark, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
@@ -142,6 +142,7 @@ async function main() {
     if (!history.ok) errors.push(`${item.code}: ${history.error}`);
 
     const officialToday = closeMode && rows[0]?.date === date;
+    const benchmarkCode = item.benchmark || loadProductBenchmark(item.code);
     let benchmark = null;
     let estimatedNav = null;
     let estimatedChangePct = null;
@@ -154,16 +155,16 @@ async function main() {
       } else if (officialToday) {
         estimatedNav = quote.ok ? quote.nav ?? rows[0].nav : rows[0].nav;
         estimatedChangePct = rows[0].changePct ?? null;
-      } else if (item.benchmark) {
-        benchmark = item.benchmark;
+      } else if (benchmarkCode) {
+        benchmark = benchmarkCode;
         let bench = null;
         try {
-          bench = await fetchExchangeQuote(item.benchmark);
+          bench = await fetchExchangeQuote(benchmarkCode);
         } catch {
           bench = null;
         }
         if (!bench) {
-          const fallback = call("fund.mjs", ["quote", item.benchmark, "--exchange"]);
+          const fallback = call("fund.mjs", ["quote", benchmarkCode, "--exchange"]);
           if (fallback.ok && fallback.market === "exchange") bench = fallback;
         }
         const benchDate = bench?.time?.slice(0, 10) ?? null;

@@ -234,7 +234,40 @@ export function openDb(dbPath) {
   db.exec("PRAGMA foreign_keys = ON");
   migrate(db);
   seed(db);
+  backfillProductMetadata(db);
   return db;
+}
+
+export function backfillProductMetadata(db) {
+  db.exec(`
+    UPDATE products SET sector = (
+      SELECT w.sector FROM watchlist w
+      WHERE w.market = products.market AND w.code = products.code
+        AND w.sector IS NOT NULL AND w.sector <> '' LIMIT 1
+    ) WHERE sector IS NULL OR sector = '';
+    UPDATE products SET benchmark = (
+      SELECT w.benchmark FROM watchlist w
+      WHERE w.market = products.market AND w.code = products.code
+        AND w.benchmark IS NOT NULL AND w.benchmark <> '' LIMIT 1
+    ) WHERE benchmark IS NULL OR benchmark = '';
+    UPDATE watchlist SET benchmark = NULL
+    WHERE benchmark IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM products p
+        WHERE p.market = watchlist.market AND p.code = watchlist.code
+          AND p.benchmark IS NOT NULL AND p.benchmark <> ''
+      );
+  `);
+}
+
+export function updateProduct(db, { market, code, sector, benchmark }) {
+  db.prepare("UPDATE products SET sector = ?, benchmark = ?, updated_at = ? WHERE market = ? AND code = ?").run(
+    sector || null,
+    benchmark || null,
+    now(),
+    market,
+    code,
+  );
 }
 
 export function tx(db, fn) {

@@ -18,7 +18,6 @@ const form = reactive({
   productKey: "",
   code: "",
   name: "",
-  benchmark: "",
   sector: "",
   queriesText: "",
   enabled: true,
@@ -55,7 +54,6 @@ function openCreate(market = "otc") {
     productKey: "",
     code: "",
     name: "",
-    benchmark: "",
     sector: "",
     queriesText: "",
     enabled: true,
@@ -73,7 +71,6 @@ function openEdit(row) {
     productKey: `${row.market}:${row.code}`,
     code: row.code,
     name: row.name ?? "",
-    benchmark: row.benchmark ?? "",
     sector: row.sector ?? "",
     queriesText: (row.queries ?? []).join("\n"),
     enabled: row.enabled,
@@ -124,6 +121,7 @@ function onProductChange(key) {
   form.market = product.market;
   form.code = product.code;
   form.name = product.name;
+  form.sector = product.sector || "";
 }
 
 function onMarketChange() {
@@ -146,7 +144,6 @@ async function save() {
       market: form.market,
       code: form.code.trim(),
       name: form.name.trim(),
-      benchmark: form.benchmark.trim(),
       sector: form.sector.trim(),
       queries: form.queriesText
         .split("\n")
@@ -233,7 +230,6 @@ async function remove(row) {
           <el-table-column prop="name" label="名称" min-width="170" show-overflow-tooltip />
           <el-table-column prop="category" label="分类" width="130" show-overflow-tooltip />
           <el-table-column prop="sector" label="板块" width="110" />
-          <el-table-column prop="benchmark" label="对标 ETF" width="100" />
           <el-table-column label="搜索词" width="80" align="center">
             <template #default="{ row }">{{ (row.queries || []).length }}</template>
           </el-table-column>
@@ -298,11 +294,6 @@ async function remove(row) {
           <el-col :span="12">
             <el-form-item label="板块">
               <el-input v-model="form.sector" placeholder="如 银行/红利" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="对标 ETF">
-              <el-input v-model="form.benchmark" placeholder="场外估值用，需在产品库，如 512800" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

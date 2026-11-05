@@ -1,4 +1,4 @@
-import { tx } from "./db.mjs";
+import { backfillProductMetadata, tx } from "./db.mjs";
 
 const FUND_LIST_URL = "https://fund.eastmoney.com/js/fundcode_search.js";
 
@@ -53,6 +53,7 @@ export async function syncProducts(db) {
       upsert.run(market, code, name, category ?? null, typeFor(market, name), updatedAt);
       changed += 1;
     }
+    backfillProductMetadata(db);
   });
 
   const counts = { all: 0, index: 0, exchange: 0, otc: 0 };
