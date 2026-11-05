@@ -3,11 +3,13 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadAppSettings, loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadAppSettings, loadMarketMode, loadWatchlist } from "../scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, "..", "..");
-const scriptsDir = path.join(root, ".commandcode", "skills", "fund-trading", "scripts");
+const root = process.env.FUND_TRADE_PROJECT_ROOT
+  ? path.resolve(process.env.FUND_TRADE_PROJECT_ROOT)
+  : path.resolve(here, "..", "..", "..");
+const scriptsDir = path.resolve(here, "..", "scripts");
 const stateDir = process.env.FUND_TRADE_HOME
   ? path.resolve(process.env.FUND_TRADE_HOME)
   : path.join(root, ".fund-trading");

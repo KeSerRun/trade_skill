@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function hasProjectMarker(dir) {
-  return fs.existsSync(path.join(dir, ".commandcode")) || fs.existsSync(path.join(dir, ".git"));
+  return (
+    fs.existsSync(path.join(dir, ".commandcode")) ||
+    fs.existsSync(path.join(dir, ".git")) ||
+    fs.existsSync(path.join(dir, ".fund-trading"))
+  );
 }
 
 function findProjectRoot(start) {

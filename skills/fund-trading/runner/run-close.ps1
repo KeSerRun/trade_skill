@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$Date = "",
-  [switch]$NoPush
+  [switch]$NoPush,
+  [string]$ProjectRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,7 +11,14 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$root = if ($ProjectRoot) {
+  (Resolve-Path $ProjectRoot).Path
+} elseif ($env:FUND_TRADE_PROJECT_ROOT) {
+  (Resolve-Path $env:FUND_TRADE_PROJECT_ROOT).Path
+} else {
+  (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
+}
+$env:FUND_TRADE_PROJECT_ROOT = $root
 $collectDir = Join-Path $root ".fund-trading\collect"
 $reportDir = Join-Path $root ".fund-trading\reports"
 $logDir = Join-Path $root ".fund-trading\logs"

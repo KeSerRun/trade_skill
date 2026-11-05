@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { loadAccount, saveAccount, snapshot } from "../skills/fund-trading/scripts/lib/portfolio.mjs";
-import { applyBuy, applySell } from "../skills/fund-trading/scripts/lib/trade.mjs";
-import { checkBuy, checkSell } from "../skills/fund-trading/scripts/lib/riskcore.mjs";
-import { loadConfig } from "../skills/fund-trading/scripts/lib/config.mjs";
-import { round, today } from "../skills/fund-trading/scripts/lib/store.mjs";
-import { loadAppSettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadAccount, saveAccount, snapshot } from "../scripts/lib/portfolio.mjs";
+import { applyBuy, applySell } from "../scripts/lib/trade.mjs";
+import { checkBuy, checkSell } from "../scripts/lib/riskcore.mjs";
+import { loadConfig } from "../scripts/lib/config.mjs";
+import { round, today } from "../scripts/lib/store.mjs";
+import { loadAppSettings } from "../scripts/lib/sqlite.mjs";
 import { renderMarkdown } from "./advice.mjs";
 
 function main() {

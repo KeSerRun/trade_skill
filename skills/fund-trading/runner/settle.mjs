@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { loadAccount, saveAccount } from "../skills/fund-trading/scripts/lib/portfolio.mjs";
-import { navHistory } from "../skills/fund-trading/scripts/lib/data.mjs";
-import { round, today } from "../skills/fund-trading/scripts/lib/store.mjs";
+import { loadAccount, saveAccount } from "../scripts/lib/portfolio.mjs";
+import { navHistory } from "../scripts/lib/data.mjs";
+import { round, today } from "../scripts/lib/store.mjs";
 
 async function main() {
   const day = today();

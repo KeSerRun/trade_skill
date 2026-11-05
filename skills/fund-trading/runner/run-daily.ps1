@@ -6,7 +6,9 @@ param(
   [switch]$ReuseNews,
   [int]$Limit = 0,
   [string]$Model = "",
-  [string]$Market = ""
+  [string]$Market = "",
+  [string]$AgentAdapter = "",
+  [string]$ProjectRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,14 +24,21 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$root = if ($ProjectRoot) {
+  (Resolve-Path $ProjectRoot).Path
+} elseif ($env:FUND_TRADE_PROJECT_ROOT) {
+  (Resolve-Path $env:FUND_TRADE_PROJECT_ROOT).Path
+} else {
+  (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
+}
+$env:FUND_TRADE_PROJECT_ROOT = $root
 $collectDir = Join-Path $root ".fund-trading\collect"
 $reportDir = Join-Path $root ".fund-trading\reports"
 $logDir = Join-Path $root ".fund-trading\logs"
-$agentDir = Join-Path $root ".commandcode\fund-report\agent"
-$skillDir = Join-Path $root ".commandcode\skills\fund-trading"
+$agentDir = Join-Path $PSScriptRoot "agent"
+$skillDir = Split-Path $PSScriptRoot -Parent
 
-New-Item -ItemType Directory -Force -Path $collectDir, $reportDir, $logDir | Out-Null
+New-Item -ItemType Directory -Force -Path $collectDir, $reportDir, $logDir, $agentDir | Out-Null
 
 if (-not $Date) { $Date = Get-Date -Format "yyyy-MM-dd" }
 $logFile = Join-Path $logDir "$Date.log"
@@ -45,10 +54,32 @@ if (-not $node) {
   Log "node not found"
   exit 1
 }
-$cli = "D:\Command Code\resources\app\node_modules\command-code\dist\index.mjs"
-if (-not (Test-Path $cli)) {
-  Log "CLI not found: $cli"
-  exit 1
+
+$adapter = if ($AgentAdapter) {
+  $AgentAdapter
+} elseif ($env:FUND_TRADE_AGENT_ADAPTER) {
+  $env:FUND_TRADE_AGENT_ADAPTER
+} elseif ($env:FUND_TRADE_AGENT_CMD) {
+  $env:FUND_TRADE_AGENT_CMD
+} else {
+  $null
+}
+$adapterPath = $null
+if ($adapter) {
+  $resolved = Resolve-Path $adapter -ErrorAction SilentlyContinue
+  if ($resolved) { $adapterPath = $resolved.Path } else { Log "agent adapter not found: $adapter" }
+}
+
+$cli = $env:FUND_TRADE_CLI
+if (-not $cli) {
+  foreach ($name in @("command-code", "cmdc")) {
+    $command = Get-Command $name -ErrorAction SilentlyContinue
+    if ($command) { $cli = $command.Source; break }
+  }
+}
+if (-not $cli) {
+  $fallback = "D:\Command Code\resources\app\node_modules\command-code\dist\index.mjs"
+  if (Test-Path $fallback) { $cli = $fallback }
 }
 
 $settingsOutput = & $node (Join-Path $PSScriptRoot "settings.mjs") --json 2>> $logFile
@@ -59,8 +90,39 @@ if (-not $settings) {
 if (-not $Model) { $Model = $settings.model }
 
 function Run-Agent([string]$prompt, [int]$maxTurns, [string]$tag) {
+  $stamp = Get-Date -Format "yyyyMMdd-HHmmss-fff"
+  $promptFile = Join-Path $agentDir "prompt-$tag-$stamp.md"
+  [System.IO.File]::WriteAllText($promptFile, $prompt, (New-Object System.Text.UTF8Encoding($false)))
+
+  if ($adapterPath) {
+    $outputFile = Join-Path $agentDir "result-$tag-$stamp.txt"
+    Push-Location $agentDir
+    try {
+      & $adapterPath -PromptFile $promptFile -OutputFile $outputFile -MaxTurns $maxTurns -Model $Model 2>> $logFile
+      $exitCode = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+    if (-not (Test-Path $outputFile)) {
+      Log "$tag adapter failed: no output file (exit=$exitCode)"
+      return $null
+    }
+    $text = [System.IO.File]::ReadAllText($outputFile, [System.Text.Encoding]::UTF8).Trim()
+    if (-not $text) {
+      Log "$tag adapter returned empty output (exit=$exitCode)"
+      return $null
+    }
+    Log "$tag ok via adapter: chars=$($text.Length)"
+    return $text
+  }
+  if (-not $cli) {
+    Log "$tag skipped: no --AgentAdapter, FUND_TRADE_AGENT_CMD or supported CLI"
+    return $null
+  }
+
+  $isScript = $cli -match '\.(mjs|js)$'
   $cliArgs = @(
-    $cli, "-p", $prompt,
+    "-p", $prompt,
     "--output-format", "json",
     "--yolo",
     "--skip-onboarding",
@@ -73,7 +135,11 @@ function Run-Agent([string]$prompt, [int]$maxTurns, [string]$tag) {
 
   Push-Location $agentDir
   try {
-    $output = & $node @cliArgs 2>> $logFile
+    if ($isScript) {
+      $output = & $node $cli @cliArgs 2>> $logFile
+    } else {
+      $output = & $cli @cliArgs 2>> $logFile
+    }
     $exitCode = $LASTEXITCODE
   } finally {
     Pop-Location

@@ -18,14 +18,14 @@ const USAGE = `基金行情与数据工具
   node fund.mjs nav <基金代码> [--pages N] [--page-size N] [--json]
   node fund.mjs search <关键词> [--limit N] [--json]
   node fund.mjs doctor [--json]
-  node fund.mjs setup [--daily 14:30] [--close 15:30] [--market otc|exchange] [--dry-run] [--uninstall] [--json]
+  node fund.mjs setup [--daily 14:30] [--close 15:30] [--market otc|exchange] [--agent-adapter <ps1>] [--dry-run] [--uninstall] [--json]
 
 说明:
   quote  获取最新净值/价格（场外走净值，场内 ETF 走实时价格）
   nav    获取历史净值序列
   search 按代码/名称/拼音检索基金
   doctor 检测数据源连通性
-  setup  注册 Windows 每日定时任务（需要完整项目中的 fund-report）`;
+  setup  注册 Windows 每日定时任务（需要项目中的 runner）`;
 
 function print(data, renderHuman, flags) {
   if (isJsonMode(flags)) {
@@ -37,7 +37,7 @@ function print(data, renderHuman, flags) {
 
 async function run() {
   const [, , command, ...rest] = process.argv;
-  const valueFlags = ["pages", "page-size", "limit", "daily", "close", "market", "project-root"];
+  const valueFlags = ["pages", "page-size", "limit", "daily", "close", "market", "project-root", "agent-adapter"];
   const { positional, flags } = parseArgs(rest, valueFlags);
 
   switch (command) {
@@ -145,6 +145,7 @@ async function run() {
       if (flags.close === true) throw new Error("--close 需要 HH:mm 时间");
       if (flags.market === true) throw new Error("--market 需要 otc 或 exchange");
       if (flags["project-root"] === true) throw new Error("--project-root 需要目录路径");
+      if (flags["agent-adapter"] === true) throw new Error("--agent-adapter 需要适配器脚本路径");
 
       const setupScript = path.join(path.dirname(fileURLToPath(import.meta.url)), "setup-tasks.ps1");
       const args = [
@@ -163,6 +164,7 @@ async function run() {
         "-Market",
         String(flags.market ?? "otc"),
       ];
+      if (flags["agent-adapter"]) args.push("-AgentAdapter", String(flags["agent-adapter"]));
       for (const [name, parameter] of [
         ["no-daily", "-NoDaily"],
         ["no-close", "-NoClose"],

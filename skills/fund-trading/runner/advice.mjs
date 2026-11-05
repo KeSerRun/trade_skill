@@ -2,10 +2,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { buyRateFor, loadConfig, sellRateForHoldingDays } from "../skills/fund-trading/scripts/lib/config.mjs";
-import { computeBuyFill, computeSellFill } from "../skills/fund-trading/scripts/lib/trade.mjs";
-import { loadAdviceSettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
-import { daysBetween, round } from "../skills/fund-trading/scripts/lib/store.mjs";
+import { buyRateFor, loadConfig, sellRateForHoldingDays } from "../scripts/lib/config.mjs";
+import { computeBuyFill, computeSellFill } from "../scripts/lib/trade.mjs";
+import { loadAdviceSettings } from "../scripts/lib/sqlite.mjs";
+import { daysBetween, round } from "../scripts/lib/store.mjs";
 
 const DEFAULTS = {
   enabled: true,

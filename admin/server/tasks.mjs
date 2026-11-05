@@ -12,7 +12,7 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..", "..");
-const reportDir = path.join(projectRoot, ".commandcode", "fund-report");
+const reportDir = path.join(projectRoot, "skills", "fund-trading", "runner");
 
 const TYPE_META = {
   daily: {
@@ -162,7 +162,11 @@ function actionArguments(task) {
   const meta = TYPE_META[task.type];
   const scriptPath = path.join(reportDir, meta.script);
   const marketArg = task.type === "daily" && task.market ? ` -Market ${task.market}` : "";
-  return `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}"${marketArg}`;
+  const adapter = task.type === "daily" && process.env.FUND_TRADE_AGENT_ADAPTER
+    ? path.resolve(process.env.FUND_TRADE_AGENT_ADAPTER)
+    : "";
+  const adapterArg = adapter ? ` -AgentAdapter "${adapter}"` : "";
+  return `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}" -ProjectRoot "${projectRoot}"${marketArg}${adapterArg}`;
 }
 
 async function registerWindowsTask(task) {
@@ -235,7 +239,9 @@ export async function ensureTaskActions(db) {
       await registerWindowsTask({ ...task, enabled });
       continue;
     }
-    if (current.action !== expected) {
+    const hasAdapterAction = current.action?.includes("-AgentAdapter");
+    const expectedHasAdapter = expected.includes("-AgentAdapter");
+    if (current.action !== expected && !(hasAdapterAction && !expectedHasAdapter)) {
       await registerWindowsTask({ ...task, enabled });
     }
   }

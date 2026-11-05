@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { loadNotifySettings } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadNotifySettings } from "../scripts/lib/sqlite.mjs";
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(`--${name}`);

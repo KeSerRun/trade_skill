@@ -1,6 +1,6 @@
 # trade_skill — 基金交易助手
 
-给 Command Code 用的基金助手：查行情与净值、抓基金档案与重仓股、对联网资讯做雷点/热点打分、维护纸面账户与风控，并支持每天自动生成操作与收盘盈亏。**全部为模拟盘，不连接真实账户，不自动下单，不构成投资建议。**
+面向支持 Agent Skills 的智能体的基金助手：查行情与净值、抓基金档案与重仓股、对联网资讯做雷点/热点打分、维护纸面账户与风控，并支持每天自动生成操作与收盘盈亏。**全部为模拟盘，不连接真实账户，不自动下单，不构成投资建议。**
 
 当前形态：
 
@@ -9,28 +9,35 @@
 - **SQLite 单一数据源**：账户、持仓、成交、指令、规则、净值快照、资讯结论都在 `.fund-trading/fund.db`
 - **管理后台**：Vue 3 + Element Plus，管理持仓和场内/场外交易限制
 
+## 安装
+
+技能本体在 `skills/fund-trading/`，包含标准 `SKILL.md`、`scripts/`、`references/` 和可选的 `runner/`。
+
+- 通用 Agent Skills 宿主：把 `skills/fund-trading/` 复制到宿主的 skills 目录。
+- Command Code：可以继续使用 `.commandcode/skills/fund-trading` 兼容入口，或直接把 `skills/fund-trading` 作为技能目录加载。
+- 管理后台是独立可选项，不影响核心技能使用。
+
 ## 目录结构
 
 ```
 trade_skill/
-├── .commandcode/
-│   ├── skills/fund-trading/
-│   │   ├── SKILL.md
-│   │   ├── scripts/
-│   │   │   ├── fund.mjs      # 行情 / 净值 / 检索
-│   │   │   ├── news.mjs      # 雷点热点：档案、搜索词、分类打分、结论
-│   │   │   ├── order.mjs     # 模拟指令：新建/列表/回报/取消/过期
-│   │   │   ├── paper.mjs     # 纸面账户：记账、持仓、流水、快照
-│   │   │   ├── risk.mjs      # 风控：限额、集中度、止损止盈、回撤、调仓
-│   │   │   └── lib/
-│   │   │       ├── paths.mjs      # 状态目录与数据库路径
-│   │   │       ├── sqlite.mjs     # SQLite 存储层
-│   │   │       ├── config.mjs     # 默认规则 + SQLite 规则读取
-│   │   │       ├── portfolio.mjs  trade.mjs    riskcore.mjs
-│   │   │       ├── orders.mjs     news.mjs     data.mjs
-│   │   │       ├── http.mjs       store.mjs    cli.mjs  format.mjs
-│   │   └── references/
-│   └── fund-report/          # 14:30 / 15:30 自动任务
+├── skills/fund-trading/
+│   ├── SKILL.md
+│   ├── scripts/
+│   │   ├── fund.mjs      # 行情 / 净值 / 检索
+│   │   ├── news.mjs      # 雷点热点：档案、搜索词、分类打分、结论
+│   │   ├── order.mjs     # 模拟指令：新建/列表/回报/取消/过期
+│   │   ├── paper.mjs     # 纸面账户：记账、持仓、流水、快照
+│   │   ├── risk.mjs      # 风控：限额、集中度、止损止盈、回撤、调仓
+│   │   └── lib/
+│   │       ├── paths.mjs      # 状态目录与数据库路径
+│   │       ├── sqlite.mjs     # SQLite 存储层
+│   │       ├── config.mjs     # 默认规则 + SQLite 规则读取
+│   │       ├── portfolio.mjs  trade.mjs    riskcore.mjs
+│   │       ├── orders.mjs     news.mjs     data.mjs
+│   │       ├── http.mjs       store.mjs    cli.mjs  format.mjs
+│   ├── references/
+│   └── runner/               # 14:30 / 15:30 自动任务
 │       ├── run-daily.ps1
 │       ├── run-close.ps1
 │       ├── collect.mjs       advice.mjs   execute.mjs
@@ -41,6 +48,7 @@ trade_skill/
 │   ├── server/               # Node API + SQLite
 │   ├── src/                  # 前端页面
 │   └── dist/                 # 构建产物
+├── .commandcode/skills/fund-trading/SKILL.md  # Command Code 兼容入口
 └── .fund-trading/
     └── fund.db               # 唯一交易数据源（含设置与推送配置）
 ```
@@ -49,7 +57,7 @@ trade_skill/
 
 - Node.js 22+（使用内置 `node:sqlite`）
 - 可访问东方财富 / 腾讯 / 新浪
-- Agent 使用内置 `web_search` 抓新闻（脚本只做分类）
+- 宿主提供网页搜索工具（如 `web_search`、`search`、`browser`；脚本只做分类）
 - 管理后台需要 `npm install`（Vue、Element Plus、Vite）
 
 ## 管理后台
@@ -93,16 +101,24 @@ Windows 计划任务：
 首次安装后可以直接用 skill 命令注册，不需要先启动后台：
 
 ```powershell
-node .commandcode/skills/fund-trading/scripts/fund.mjs setup
+node skills/fund-trading/scripts/fund.mjs setup
 ```
 
 可指定时间、市场和项目目录：
 
 ```powershell
-node .commandcode/skills/fund-trading/scripts/fund.mjs setup --daily 14:30 --close 15:30 --market otc --project-root D:\MS-PRG\trade_skill
+node skills/fund-trading/scripts/fund.mjs setup --daily 14:30 --close 15:30 --market otc --project-root D:\MS-PRG\trade_skill
 ```
 
-`--dry-run` 只预览，`--uninstall` 删除这两个任务并在 `scheduled_tasks` 中标记停用，`--no-daily` / `--no-close` 只注册其中一个。注册目前只支持 Windows，且需要完整的 `.commandcode/fund-report` 运行脚本；只安装 skill 目录不会包含这些脚本。
+`--dry-run` 只预览，`--uninstall` 删除这两个任务并在 `scheduled_tasks` 中标记停用，`--no-daily` / `--no-close` 只注册其中一个。注册目前只支持 Windows；runner 已包含在 skill 内，但自动任务仍需要项目根目录下的 `.fund-trading` 数据和 Node.js/Command Code 或自定义 Agent 适配器。
+
+如果使用 Claude Code、Codex 或其他 Agent，可以写一个 PowerShell 适配器，接收 `-PromptFile`、`-OutputFile`、`-MaxTurns`、`-Model` 并把最终文本写入 `-OutputFile`，然后注册时传入：
+
+```powershell
+node skills/fund-trading/scripts/fund.mjs setup --agent-adapter "C:\path\agent-adapter.ps1"
+```
+
+示例见 `skills/fund-trading/runner/agent-adapter.example.ps1`。后台同步 action 时读取 `FUND_TRADE_AGENT_ADAPTER`，用后台管理任务时请给后台进程设置同一个变量。
 
 管理台支持新增、编辑、删除定时任务；日报任务可以单独选择场外 / 场内，任务配置保存在 `scheduled_tasks`，Windows 计划任务由管理台同步注册和删除。
 
@@ -111,7 +127,7 @@ node .commandcode/skills/fund-trading/scripts/fund.mjs setup --daily 14:30 --clo
 手动重跑当天任务（复用已抓新闻、不重复推送）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .commandcode\fund-report\run-daily.ps1 -ReuseNews -NoPush
+powershell -ExecutionPolicy Bypass -File skills\fund-trading\runner\run-daily.ps1 -ReuseNews -NoPush
 ```
 
 运行日志在 `.fund-trading/logs/`，采集和报告产物在 `.fund-trading/collect/` 与 `.fund-trading/reports/`。
@@ -146,22 +162,22 @@ powershell -ExecutionPolicy Bypass -File .commandcode\fund-report\run-daily.ps1 
 
 ```bash
 # 数据源连通性
-node .commandcode/skills/fund-trading/scripts/fund.mjs doctor --json
+node skills/fund-trading/scripts/fund.mjs doctor --json
 
 # 行情 / 净值 / 检索
-node .commandcode/skills/fund-trading/scripts/fund.mjs search 白酒 --json
-node .commandcode/skills/fund-trading/scripts/fund.mjs quote 161725 --json
+node skills/fund-trading/scripts/fund.mjs search 白酒 --json
+node skills/fund-trading/scripts/fund.mjs quote 161725 --json
 
 # 基金档案 + 建议搜索词
-node .commandcode/skills/fund-trading/scripts/news.mjs profile 161725 --json
+node skills/fund-trading/scripts/news.mjs profile 161725 --json
 
 # 账户与持仓
-node .commandcode/skills/fund-trading/scripts/paper.mjs init --cash 10000 --json
-node .commandcode/skills/fund-trading/scripts/paper.mjs status --json
+node skills/fund-trading/scripts/paper.mjs init --cash 10000 --json
+node skills/fund-trading/scripts/paper.mjs status --json
 
 # 风控
-node .commandcode/skills/fund-trading/scripts/risk.mjs alerts --json
-node .commandcode/skills/fund-trading/scripts/risk.mjs drawdown --json
+node skills/fund-trading/scripts/risk.mjs alerts --json
+node skills/fund-trading/scripts/risk.mjs drawdown --json
 ```
 
 手动指令模式仍保留：`order.mjs new` 生成指令单，用户执行后 `order.mjs fill` 回报成交。自动模式则直接由 `execute.mjs` 写入 SQLite。
@@ -169,7 +185,7 @@ node .commandcode/skills/fund-trading/scripts/risk.mjs drawdown --json
 ## 资讯结论怎么来
 
 1. `news.mjs profile <code>` 抓基金档案、重仓股、申赎状态，并生成建议搜索词。
-2. Agent 用 `web_search` 逐条搜索，记录 `title/url/snippet/date`。
+2. 宿主用网页搜索工具逐条搜索，记录 `title/url/snippet/date`。
 3. `news.mjs scan` 按关键词权重、时间衰减打分：
    - `risk` 雷点占优 → 回避 / 减仓
    - `hot` 热点占优 → 可考虑买入 / 持有

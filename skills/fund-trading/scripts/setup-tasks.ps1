@@ -8,7 +8,8 @@ param(
   [switch]$NoDaily,
   [switch]$NoClose,
   [switch]$Uninstall,
-  [switch]$DryRun
+  [switch]$DryRun,
+  [string]$AgentAdapter = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,25 +30,38 @@ try {
   }
 
   if (-not $ProjectRoot) {
-    $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
+    $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
   } else {
     $ProjectRoot = (Resolve-Path $ProjectRoot).Path
   }
 
-  $reportDir = Join-Path $ProjectRoot ".commandcode\fund-report"
+  $reportDir = Join-Path $ProjectRoot "skills\fund-trading\runner"
   if (-not (Test-Path $reportDir)) {
     throw "fund-report not found: $reportDir. Install the full project, not only the skill folder."
   }
 
+  if (-not $AgentAdapter -and $env:FUND_TRADE_AGENT_ADAPTER) {
+    $AgentAdapter = $env:FUND_TRADE_AGENT_ADAPTER
+  }
+
+  $adapterPath = $null
+  if ($AgentAdapter) {
+    $resolvedAdapter = Resolve-Path $AgentAdapter -ErrorAction SilentlyContinue
+    if (-not $resolvedAdapter) { throw "agent adapter not found: $AgentAdapter" }
+    $adapterPath = $resolvedAdapter.Path
+  }
+
   $definitions = @()
   if (-not $NoDaily) {
+    $extra = "-Market $Market -ProjectRoot `"$ProjectRoot`""
+    if ($adapterPath) { $extra = "$extra -AgentAdapter `"$adapterPath`"" }
     $definitions += [pscustomobject]@{
       id = "FundDailyReport"
       type = "daily"
       time = $DailyTime
       market = $Market
       script = (Join-Path $reportDir "run-daily.ps1")
-      extra = "-Market $Market"
+      extra = $extra
     }
   }
   if (-not $NoClose) {
@@ -57,7 +71,7 @@ try {
       time = $CloseTime
       market = $null
       script = (Join-Path $reportDir "run-close.ps1")
-      extra = ""
+      extra = "-ProjectRoot `"$ProjectRoot`""
     }
   }
 
@@ -115,6 +129,7 @@ try {
     reportDir = $reportDir
     dryRun = [bool]$DryRun
     uninstall = [bool]$Uninstall
+    agentAdapter = $adapterPath
     tasks = $tasks
   })
 } catch {
