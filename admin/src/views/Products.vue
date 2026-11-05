@@ -1,7 +1,10 @@
 <script setup>
 import { onMounted, onUnmounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { api } from "../api";
+
+const router = useRouter();
 
 const loading = ref(false);
 const syncing = ref(false);
@@ -161,6 +164,10 @@ async function syncProducts() {
   }
 }
 
+function openView(row) {
+  router.push({ path: "/market", query: { market: row.market, code: row.code } });
+}
+
 async function toggleWatch(row) {
   if (row.market === "index") return;
   try {
@@ -297,8 +304,9 @@ onUnmounted(() => {
                 <span v-else class="muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="110" fixed="right">
+            <el-table-column label="操作" width="160" fixed="right">
               <template #default="{ row }">
+                <el-button link type="primary" @click="openView(row)">查看</el-button>
                 <el-button
                   v-if="row.market !== 'index'"
                   link
@@ -307,7 +315,6 @@ onUnmounted(() => {
                 >
                   {{ row.watched ? "取消关注" : "加入关注" }}
                 </el-button>
-                <span v-else class="muted">—</span>
               </template>
             </el-table-column>
           </el-table>

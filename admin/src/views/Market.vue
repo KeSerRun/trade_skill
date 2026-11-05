@@ -1,7 +1,10 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { api } from "../api";
+
+const route = useRoute();
 
 const snapshot = ref({ quotes: [], session: "closed", at: null, error: null });
 const loading = ref(false);
@@ -12,6 +15,13 @@ const candleData = ref({ candles: [], decimals: 3 });
 const candleLoading = ref(false);
 const chartPeriod = ref("intraday");
 const filter = ref("all");
+const focusQuote = ref(null);
+
+const focusKey = computed(() => {
+  const market = String(route.query.market || "").trim();
+  const code = String(route.query.code || "").trim();
+  return market && code ? `${market}:${code}` : "";
+});
 
 let source = null;
 let trendTimer = null;
@@ -295,13 +305,73 @@ function groupLabel(quote) {
 
 function applySnapshot(data) {
   if (!data) return;
-  snapshot.value = { ...snapshot.value, ...data };
-  const nextQuotes = data.quotes ?? [];
+  const incoming = data.quotes ?? [];
+  if (incoming.length === 0 && !focusQuote.value) return;
+  const nextQuotes =
+    focusQuote.value && !incoming.some((item) => item.key === focusKey.value)
+      ? [focusQuote.value, ...incoming]
+      : incoming;
+  snapshot.value = { ...snapshot.value, ...data, quotes: nextQuotes };
   if (nextQuotes.length === 0) return;
   const exists = nextQuotes.some((item) => item.key === selectedKey.value);
   if (!selectedKey.value || !exists) {
     selectedKey.value = nextQuotes[0].key;
     loadActiveChart(selectedKey.value);
+  }
+}
+
+async function loadFocus() {
+  const key = focusKey.value;
+  if (!key) {
+    focusQuote.value = null;
+    return;
+  }
+  try {
+    let quote = null;
+    if (key.startsWith("otc:")) {
+      const data = await api.marketNavs([key]);
+      const nav = data.navs?.[0];
+      if (nav) {
+        quote = {
+          id: key,
+          key,
+          code: nav.code,
+          name: nav.name,
+          market: "otc",
+          kind: "otc",
+          group: "otc",
+          groups: ["otc"],
+          price: nav.nav,
+          prevClose: null,
+          open: null,
+          high: null,
+          low: null,
+          change: null,
+          changePct: nav.changePct,
+          volume: null,
+          amount: null,
+          decimals: 4,
+          navDate: nav.navDate,
+          at: null,
+          source: nav.source,
+        };
+      }
+    } else {
+      const data = await api.marketQuotes([key]);
+      const found = data.quotes?.[0];
+      if (found) quote = { ...found, id: key, key };
+    }
+    if (!quote) return;
+    focusQuote.value = quote;
+    const existing = snapshot.value.quotes ?? [];
+    snapshot.value = {
+      ...snapshot.value,
+      quotes: [quote, ...existing.filter((item) => item.key !== key)],
+    };
+    selectedKey.value = key;
+    loadActiveChart(key);
+  } catch (error) {
+    ElMessage.error(error.message);
   }
 }
 
@@ -391,8 +461,9 @@ function connect() {
   });
 }
 
-onMounted(() => {
-  loadSnapshot();
+onMounted(async () => {
+  await loadSnapshot();
+  await loadFocus();
   connect();
   trendTimer = setInterval(() => {
     if (!selectedKey.value) return;
@@ -404,6 +475,15 @@ onMounted(() => {
       loadCandles(quote.code, chartPeriod.value, true);
     }
   }, 30000);
+});
+
+watch(focusKey, async (key) => {
+  if (!key) {
+    focusQuote.value = null;
+    await loadSnapshot();
+    return;
+  }
+  await loadFocus();
 });
 
 onUnmounted(() => {
