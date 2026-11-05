@@ -39,6 +39,12 @@ $agentDir = Join-Path $PSScriptRoot "agent"
 $skillDir = Split-Path $PSScriptRoot -Parent
 
 New-Item -ItemType Directory -Force -Path $collectDir, $reportDir, $logDir, $agentDir | Out-Null
+$commandCodeSettings = Join-Path $agentDir "command-code-settings.json"
+if (Test-Path $commandCodeSettings) {
+  $commandCodeDir = Join-Path $agentDir ".commandcode"
+  New-Item -ItemType Directory -Force -Path $commandCodeDir | Out-Null
+  Copy-Item -Path $commandCodeSettings -Destination (Join-Path $commandCodeDir "settings.json") -Force
+}
 
 if (-not $Date) { $Date = Get-Date -Format "yyyy-MM-dd" }
 $logFile = Join-Path $logDir "$Date.log"

@@ -14,7 +14,7 @@
 技能本体在 `skills/fund-trading/`，包含标准 `SKILL.md`、`scripts/`、`references/` 和可选的 `runner/`。
 
 - 通用 Agent Skills 宿主：把 `skills/fund-trading/` 复制到宿主的 skills 目录。
-- Command Code：可以继续使用 `.commandcode/skills/fund-trading` 兼容入口，或直接把 `skills/fund-trading` 作为技能目录加载。
+- Command Code：直接把 `skills/fund-trading` 作为技能目录加载。
 - 管理后台是独立可选项，不影响核心技能使用。
 
 ## 目录结构
@@ -48,7 +48,6 @@ trade_skill/
 │   ├── server/               # Node API + SQLite
 │   ├── src/                  # 前端页面
 │   └── dist/                 # 构建产物
-├── .commandcode/skills/fund-trading/SKILL.md  # Command Code 兼容入口
 └── .fund-trading/
     └── fund.db               # 唯一交易数据源（含设置与推送配置）
 ```
