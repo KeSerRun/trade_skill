@@ -24,6 +24,7 @@ import {
   upsertWatchlist,
 } from "./db.mjs";
 import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
+import { createMarket } from "./market.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, "..");
@@ -51,6 +52,7 @@ const port = Number(portFlag === true ? process.env.PORT || 8787 : portFlag || p
 const host = hostFlag === true ? "0.0.0.0" : hostFlag || process.env.HOST || "127.0.0.1";
 
 const db = openDb(dbPath);
+const market = createMarket(db);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -317,6 +319,50 @@ const server = http.createServer(async (req, res) => {
   try {
     if (method === "GET" && pathname === "/api/health") {
       sendJson(res, 200, { ok: true, time: now(), dbPath });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/market/snapshot") {
+      const data = await market.snapshot();
+      sendJson(res, 200, { ...data, ok: true });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/market/trend") {
+      const code = url.searchParams.get("code");
+      if (!code) throw new HttpError(400, "缺少基金代码");
+      const data = await market.trend(code);
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/market/stream") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      res.write("retry: 3000\n\n");
+      const send = (data) => {
+        try {
+          res.write(`event: snapshot\ndata: ${JSON.stringify(data)}\n\n`);
+        } catch {
+          // client disconnected; cleanup happens on close
+        }
+      };
+      const unsubscribe = market.subscribe(send);
+      const heartbeat = setInterval(() => {
+        try {
+          res.write(": ping\n\n");
+        } catch {
+          // client disconnected
+        }
+      }, 15000);
+      req.on("close", () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+      });
       return;
     }
 

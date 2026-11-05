@@ -38,6 +38,10 @@ async function refresh() {
           <el-icon><DataAnalysis /></el-icon>
           <span>总览</span>
         </el-menu-item>
+        <el-menu-item index="/market">
+          <el-icon><TrendCharts /></el-icon>
+          <span>实时行情</span>
+        </el-menu-item>
         <el-menu-item index="/positions">
           <el-icon><Wallet /></el-icon>
           <span>持仓管理</span>

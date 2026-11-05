@@ -19,6 +19,8 @@ async function request(path, options = {}) {
 
 export const api = {
   state: () => request("/state"),
+  marketSnapshot: () => request("/market/snapshot"),
+  marketTrend: (code) => request(`/market/trend?code=${encodeURIComponent(code)}`),
   updateAccount: (body) => request("/account", { method: "PUT", body: JSON.stringify(body) }),
   savePosition: (body) => request("/positions", { method: "POST", body: JSON.stringify(body) }),
   deletePosition: (code) => request(`/positions/${encodeURIComponent(code)}`, { method: "DELETE" }),
