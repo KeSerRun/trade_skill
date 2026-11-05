@@ -6,11 +6,6 @@ const KLINE_PERIODS = {
   week: { klt: 102, limit: 104 },
   month: { klt: 103, limit: 60 },
 };
-const INDICES = [
-  { code: "000001", name: "上证指数", kind: "index", group: "index", secid: "1.000001" },
-  { code: "399001", name: "深证成指", kind: "index", group: "index", secid: "0.399001" },
-  { code: "399006", name: "创业板指", kind: "index", group: "index", secid: "0.399006" },
-];
 
 const HEADERS = {
   Referer: "https://quote.eastmoney.com/",
@@ -47,47 +42,37 @@ export function sessionStatus(now = new Date()) {
   return "closed";
 }
 
-function addSymbol(map, item) {
-  const existing = map.get(item.code);
-  if (!existing) {
-    map.set(item.code, { ...item, groups: [item.group], related: item.related ? [item.related] : [] });
-    return;
-  }
-  if (!existing.groups.includes(item.group)) existing.groups.push(item.group);
-  if (item.related && !existing.related.includes(item.related)) existing.related.push(item.related);
-}
-
-function buildSymbols(db) {
-  const map = new Map();
-  for (const item of INDICES) addSymbol(map, { ...item });
+function buildWatchlist(db) {
+  const exchange = [];
+  const otc = [];
 
   for (const fund of listWatchlist(db, "exchange")) {
     if (!fund.enabled) continue;
-    addSymbol(map, {
+    exchange.push({
+      key: `exchange:${fund.code}`,
       code: fund.code,
       name: fund.name || fund.code,
       kind: "etf",
       group: "exchange",
+      groups: ["exchange"],
       secid: secidFor(fund.code),
-      fundCode: fund.code,
-      related: `${fund.code} ${fund.name || ""}`.trim(),
     });
   }
 
   for (const fund of listWatchlist(db, "otc")) {
-    if (!fund.enabled || !fund.benchmark) continue;
-    addSymbol(map, {
-      code: fund.benchmark,
-      name: fund.name || fund.benchmark,
-      kind: "etf",
+    if (!fund.enabled) continue;
+    otc.push({
+      key: `otc:${fund.code}`,
+      code: fund.code,
+      name: fund.name || fund.code,
+      market: "otc",
+      kind: "otc",
       group: "otc",
-      secid: secidFor(fund.benchmark),
-      fundCode: fund.code,
-      related: `${fund.code} ${fund.name || ""}`.trim(),
+      groups: ["otc"],
     });
   }
 
-  return [...map.values()];
+  return { exchange, otc };
 }
 
 async function fetchEastmoneyQuotes(symbols) {
@@ -193,23 +178,53 @@ export function createMarket(db) {
   async function update() {
     if (inFlight) return inFlight;
     inFlight = (async () => {
-      const symbols = buildSymbols(db);
+      const { exchange, otc } = buildWatchlist(db);
       let quotes = [];
       let error = null;
-      try {
-        quotes = await fetchEastmoneyQuotes(symbols);
-      } catch (firstError) {
+      if (exchange.length > 0) {
         try {
-          quotes = await fetchTencentQuotes(symbols);
-        } catch (secondError) {
-          error = `${firstError.message}; ${secondError.message}`;
+          quotes = await fetchEastmoneyQuotes(exchange);
+        } catch (firstError) {
+          try {
+            quotes = await fetchTencentQuotes(exchange);
+          } catch (secondError) {
+            error = `${firstError.message}; ${secondError.message}`;
+          }
         }
       }
+
+      let otcQuotes = [];
+      if (otc.length > 0) {
+        const navResult = await navs(otc.map((fund) => fund.key));
+        const navMap = new Map((navResult.navs ?? []).map((nav) => [nav.code, nav]));
+        otcQuotes = otc.map((fund) => {
+          const nav = navMap.get(fund.code);
+          return {
+            ...fund,
+            id: fund.key,
+            price: nav?.nav ?? null,
+            prevClose: null,
+            open: null,
+            high: null,
+            low: null,
+            change: null,
+            changePct: nav?.changePct ?? null,
+            volume: null,
+            amount: null,
+            decimals: 4,
+            navDate: nav?.navDate ?? null,
+            at: nav ? new Date().toISOString() : null,
+            source: nav?.source ?? null,
+          };
+        });
+      }
+
+      const merged = [...quotes, ...otcQuotes];
       cache = {
-        ok: quotes.length > 0,
+        ok: merged.length > 0,
         at: new Date().toISOString(),
         session: sessionStatus(),
-        quotes: quotes.length ? quotes : cache.quotes,
+        quotes: merged.length ? merged : cache.quotes,
         error,
       };
       for (const subscriber of subscribers) {

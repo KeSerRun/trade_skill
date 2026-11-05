@@ -18,9 +18,8 @@ let trendTimer = null;
 
 const filters = [
   { label: "全部", value: "all" },
-  { label: "指数", value: "index" },
-  { label: "场内 ETF", value: "exchange" },
-  { label: "场外对标", value: "otc" },
+  { label: "场内", value: "exchange" },
+  { label: "场外", value: "otc" },
 ];
 const periods = [
   { label: "分时", value: "intraday" },
@@ -38,6 +37,7 @@ const sessionLabels = {
 const sourceLabels = {
   eastmoney: "东方财富",
   tencent: "腾讯行情",
+  "eastmoney-lsjz": "东方财富净值",
 };
 
 const quotes = computed(() => snapshot.value.quotes ?? []);
@@ -47,6 +47,9 @@ const sessionLabel = computed(() => sessionLabels[snapshot.value.session] ?? "�
 const sessionActive = computed(() => snapshot.value.session === "trading");
 const updatedLabel = computed(() => formatTime(snapshot.value.at));
 const chartSubtitle = computed(() => {
+  if (selectedQuote.value?.market === "otc") {
+    return `最新净值 · ${selectedQuote.value.navDate ?? "—"}`;
+  }
   if (chartPeriod.value === "intraday") {
     return trend.value?.points?.length ? `分时走势 · ${trend.value.points.length} 个点` : "分时走势";
   }
@@ -62,7 +65,6 @@ const sourceLabel = computed(() => {
 });
 const filterCounts = computed(() => ({
   all: quotes.value.length,
-  index: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("index")).length,
   exchange: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("exchange")).length,
   otc: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("otc")).length,
 }));
@@ -282,11 +284,10 @@ function trendClass(value) {
 }
 
 function groupLabel(quote) {
-  if (quote.group === "index") return "指数";
-  const labels = [];
-  if ((quote.groups ?? [quote.group]).includes("exchange")) labels.push("场内 ETF");
-  if ((quote.groups ?? [quote.group]).includes("otc")) labels.push("场外对标");
-  return labels.join(" · ");
+  if ((quote.groups ?? [quote.group]).includes("index")) return "指数";
+  if ((quote.groups ?? [quote.group]).includes("exchange")) return "场内 ETF";
+  if ((quote.groups ?? [quote.group]).includes("otc")) return "场外净值";
+  return "";
 }
 
 function applySnapshot(data) {
@@ -344,6 +345,14 @@ async function loadCandles(code, period, silent = false) {
 
 function loadActiveChart(code = selectedCode.value) {
   if (!code) return;
+  const quote = quotes.value.find((item) => item.code === code);
+  if (quote?.market === "otc") {
+    trend.value = null;
+    candleData.value = { candles: [], decimals: 4 };
+    trendLoading.value = false;
+    candleLoading.value = false;
+    return;
+  }
   if (chartPeriod.value === "intraday") {
     loadTrend(code);
   } else {
@@ -383,6 +392,8 @@ onMounted(() => {
   connect();
   trendTimer = setInterval(() => {
     if (!selectedCode.value) return;
+    const quote = quotes.value.find((item) => item.code === selectedCode.value);
+    if (quote?.market === "otc") return;
     if (chartPeriod.value === "intraday") {
       loadTrend(selectedCode.value, true);
     } else {
@@ -401,9 +412,9 @@ onUnmounted(() => {
   <div class="page market-page" v-loading="loading && quotes.length === 0">
     <section class="market-summary">
       <div>
-        <span class="market-eyebrow">免费行情</span>
-        <h2>场内 ETF 与指数</h2>
-        <p>东方财富公开行情 · 交易时段每 3 秒刷新 · 场外为对标 ETF，不是实时净值</p>
+        <span class="market-eyebrow">关注行情</span>
+        <h2>关注列表行情</h2>
+        <p>场内每 3 秒刷新，场外显示最新净值，不是实时价格</p>
       </div>
       <div class="market-summary-right">
         <span class="session-pill" :class="{ on: sessionActive }">
@@ -422,7 +433,7 @@ onUnmounted(() => {
           <div class="trend-title">
             <h3>{{ selectedQuote?.name || "选择标的" }}</h3>
             <span class="mono">{{ selectedCode || "—" }}</span>
-            <el-tag v-if="selectedQuote?.groups?.includes('otc')" size="small" effect="plain">场外对标</el-tag>
+            <el-tag v-if="selectedQuote?.groups?.includes('otc')" size="small" effect="plain">场外净值</el-tag>
           </div>
           <p>{{ chartSubtitle }}</p>
         </div>
@@ -433,7 +444,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="panel-body">
-        <div class="chart-toolbar">
+        <div v-if="selectedQuote?.market !== 'otc'" class="chart-toolbar">
           <div class="chart-tabs">
             <button
               v-for="item in periods"
@@ -448,7 +459,14 @@ onUnmounted(() => {
           <span v-if="chartPeriod !== 'intraday'" class="chart-note">前复权</span>
         </div>
 
-        <div v-if="chartLoading" class="trend-loading">
+        <div v-if="selectedQuote?.market === 'otc'" class="otc-note">
+          <el-icon><InfoFilled /></el-icon>
+          <div>
+            <strong>场外基金没有实时分时行情</strong>
+            <span>最新净值 {{ formatPrice(selectedQuote) }}，净值日期 {{ selectedQuote.navDate || "—" }}</span>
+          </div>
+        </div>
+        <div v-else-if="chartLoading" class="trend-loading">
           <el-icon class="is-loading"><Loading /></el-icon>
           {{ chartPeriod === "intraday" ? "加载分时数据" : "加载历史数据" }}
         </div>
@@ -859,6 +877,39 @@ onUnmounted(() => {
   gap: 8px;
   color: var(--text-3);
   font-size: 12px;
+}
+
+.otc-note {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-2);
+}
+
+.otc-note > .el-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eef1ff;
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.otc-note strong {
+  display: block;
+  font-size: 13px;
+}
+
+.otc-note span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 11px;
 }
 
 .market-list-head {
