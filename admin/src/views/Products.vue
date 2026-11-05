@@ -215,13 +215,12 @@ onUnmounted(() => {
           <el-table :data="items" row-key="key" max-height="640">
             <el-table-column prop="code" label="代码" width="100" />
             <el-table-column prop="name" label="名称" min-width="220" show-overflow-tooltip />
-            <el-table-column label="类型" width="80">
-              <template #default="{ row }">{{ typeLabels[row.type] ?? row.type }}</template>
+            <el-table-column label="基金类型" width="150" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.category || typeLabels[row.type] || row.type }}</template>
             </el-table-column>
             <el-table-column label="市场" width="80">
               <template #default="{ row }">{{ marketLabels[row.market] ?? row.market }}</template>
             </el-table-column>
-            <el-table-column prop="category" label="分类" width="140" show-overflow-tooltip />
             <el-table-column label="最新价" width="100">
               <template #default="{ row }">
                 <span v-if="quoteFor(row)?.price != null" :class="trendClass(quoteFor(row)?.changePct)">
