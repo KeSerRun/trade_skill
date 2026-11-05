@@ -291,7 +291,7 @@ onUnmounted(() => {
                 <span v-else class="muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column label="关注" width="70">
+            <el-table-column label="关注" width="90" align="center">
               <template #default="{ row }">
                 <el-tag v-if="row.watched" size="small" type="success">已关注</el-tag>
                 <span v-else class="muted">—</span>
