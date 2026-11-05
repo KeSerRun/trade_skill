@@ -6,6 +6,35 @@ const KLINE_PERIODS = {
   week: { klt: 102, limit: 104 },
   month: { klt: 103, limit: 60 },
 };
+const DEFAULT_INDICES = [
+  {
+    key: "index:000001",
+    code: "000001",
+    name: "上证指数",
+    kind: "index",
+    group: "index",
+    groups: ["index"],
+    secid: "1.000001",
+  },
+  {
+    key: "index:399001",
+    code: "399001",
+    name: "深证成指",
+    kind: "index",
+    group: "index",
+    groups: ["index"],
+    secid: "0.399001",
+  },
+  {
+    key: "index:399006",
+    code: "399006",
+    name: "创业板指",
+    kind: "index",
+    group: "index",
+    groups: ["index"],
+    secid: "0.399006",
+  },
+];
 
 const HEADERS = {
   Referer: "https://quote.eastmoney.com/",
@@ -179,17 +208,16 @@ export function createMarket(db) {
     if (inFlight) return inFlight;
     inFlight = (async () => {
       const { exchange, otc } = buildWatchlist(db);
+      const symbols = [...DEFAULT_INDICES, ...exchange];
       let quotes = [];
       let error = null;
-      if (exchange.length > 0) {
+      try {
+        quotes = await fetchEastmoneyQuotes(symbols);
+      } catch (firstError) {
         try {
-          quotes = await fetchEastmoneyQuotes(exchange);
-        } catch (firstError) {
-          try {
-            quotes = await fetchTencentQuotes(exchange);
-          } catch (secondError) {
-            error = `${firstError.message}; ${secondError.message}`;
-          }
+          quotes = await fetchTencentQuotes(symbols);
+        } catch (secondError) {
+          error = `${firstError.message}; ${secondError.message}`;
         }
       }
 

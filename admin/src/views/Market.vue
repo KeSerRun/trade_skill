@@ -5,7 +5,7 @@ import { api } from "../api";
 
 const snapshot = ref({ quotes: [], session: "closed", at: null, error: null });
 const loading = ref(false);
-const selectedCode = ref("");
+const selectedKey = ref("");
 const trend = ref(null);
 const trendLoading = ref(false);
 const candleData = ref({ candles: [], decimals: 3 });
@@ -18,6 +18,7 @@ let trendTimer = null;
 
 const filters = [
   { label: "全部", value: "all" },
+  { label: "指数", value: "index" },
   { label: "场内", value: "exchange" },
   { label: "场外", value: "otc" },
 ];
@@ -42,7 +43,8 @@ const sourceLabels = {
 
 const quotes = computed(() => snapshot.value.quotes ?? []);
 const candles = computed(() => candleData.value.candles ?? []);
-const selectedQuote = computed(() => quotes.value.find((item) => item.code === selectedCode.value) ?? null);
+const selectedQuote = computed(() => quotes.value.find((item) => item.key === selectedKey.value) ?? null);
+const selectedCode = computed(() => selectedQuote.value?.code ?? "");
 const sessionLabel = computed(() => sessionLabels[snapshot.value.session] ?? "已收盘");
 const sessionActive = computed(() => snapshot.value.session === "trading");
 const updatedLabel = computed(() => formatTime(snapshot.value.at));
@@ -65,6 +67,7 @@ const sourceLabel = computed(() => {
 });
 const filterCounts = computed(() => ({
   all: quotes.value.length,
+  index: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("index")).length,
   exchange: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("exchange")).length,
   otc: quotes.value.filter((item) => (item.groups ?? [item.group]).includes("otc")).length,
 }));
@@ -295,10 +298,10 @@ function applySnapshot(data) {
   snapshot.value = { ...snapshot.value, ...data };
   const nextQuotes = data.quotes ?? [];
   if (nextQuotes.length === 0) return;
-  const exists = nextQuotes.some((item) => item.code === selectedCode.value);
-  if (!selectedCode.value || !exists) {
-    selectedCode.value = nextQuotes[0].code;
-    loadActiveChart(selectedCode.value);
+  const exists = nextQuotes.some((item) => item.key === selectedKey.value);
+  if (!selectedKey.value || !exists) {
+    selectedKey.value = nextQuotes[0].key;
+    loadActiveChart(selectedKey.value);
   }
 }
 
@@ -343,10 +346,11 @@ async function loadCandles(code, period, silent = false) {
   }
 }
 
-function loadActiveChart(code = selectedCode.value) {
-  if (!code) return;
-  const quote = quotes.value.find((item) => item.code === code);
-  if (quote?.market === "otc") {
+function loadActiveChart(key = selectedKey.value) {
+  if (!key) return;
+  const quote = quotes.value.find((item) => item.key === key);
+  if (!quote) return;
+  if (quote.market === "otc") {
     trend.value = null;
     candleData.value = { candles: [], decimals: 4 };
     trendLoading.value = false;
@@ -354,25 +358,25 @@ function loadActiveChart(code = selectedCode.value) {
     return;
   }
   if (chartPeriod.value === "intraday") {
-    loadTrend(code);
+    loadTrend(quote.code);
   } else {
-    loadCandles(code, chartPeriod.value);
+    loadCandles(quote.code, chartPeriod.value);
   }
 }
 
 function selectPeriod(period) {
   if (chartPeriod.value === period) return;
   chartPeriod.value = period;
-  loadActiveChart(selectedCode.value);
+  loadActiveChart(selectedKey.value);
 }
 
 function selectQuote(quote) {
-  if (selectedCode.value === quote.code) {
-    loadActiveChart(quote.code);
+  if (selectedKey.value === quote.key) {
+    loadActiveChart(quote.key);
     return;
   }
-  selectedCode.value = quote.code;
-  loadActiveChart(quote.code);
+  selectedKey.value = quote.key;
+  loadActiveChart(quote.key);
 }
 
 function connect() {
@@ -391,13 +395,13 @@ onMounted(() => {
   loadSnapshot();
   connect();
   trendTimer = setInterval(() => {
-    if (!selectedCode.value) return;
-    const quote = quotes.value.find((item) => item.code === selectedCode.value);
-    if (quote?.market === "otc") return;
+    if (!selectedKey.value) return;
+    const quote = quotes.value.find((item) => item.key === selectedKey.value);
+    if (!quote || quote.market === "otc") return;
     if (chartPeriod.value === "intraday") {
-      loadTrend(selectedCode.value, true);
+      loadTrend(quote.code, true);
     } else {
-      loadCandles(selectedCode.value, chartPeriod.value, true);
+      loadCandles(quote.code, chartPeriod.value, true);
     }
   }, 30000);
 });
@@ -412,9 +416,9 @@ onUnmounted(() => {
   <div class="page market-page" v-loading="loading && quotes.length === 0">
     <section class="market-summary">
       <div>
-        <span class="market-eyebrow">关注行情</span>
-        <h2>关注列表行情</h2>
-        <p>场内每 3 秒刷新，场外显示最新净值，不是实时价格</p>
+        <span class="market-eyebrow">关注与指数</span>
+        <h2>关注列表与默认指数</h2>
+        <p>指数默认展示；场内每 3 秒刷新，场外显示最新净值</p>
       </div>
       <div class="market-summary-right">
         <span class="session-pill" :class="{ on: sessionActive }">
@@ -597,10 +601,10 @@ onUnmounted(() => {
       <div v-if="visibleQuotes.length" class="quote-grid">
         <button
           v-for="quote in visibleQuotes"
-          :key="quote.code"
+          :key="quote.key"
           type="button"
           class="quote-card"
-          :class="{ active: selectedCode === quote.code }"
+          :class="{ active: selectedKey === quote.key }"
           @click="selectQuote(quote)"
         >
           <div class="quote-head">

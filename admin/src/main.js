@@ -20,7 +20,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/", component: Dashboard, meta: { title: "总览", subtitle: "账户、仓位与当日概况" } },
-    { path: "/market", component: Market, meta: { title: "实时行情", subtitle: "关注列表中的场内行情与场外净值" } },
+    { path: "/market", component: Market, meta: { title: "实时行情", subtitle: "关注列表与默认指数行情" } },
     { path: "/products", component: Products, meta: { title: "产品库", subtitle: "全市场基金与 ETF 产品表" } },
     { path: "/positions", component: Positions, meta: { title: "持仓管理", subtitle: "维护场外 / 场内持仓与成本" } },
     { path: "/rules", component: Rules, meta: { title: "交易限制", subtitle: "按市场配置持有天数、费率与仓位上限" } },
