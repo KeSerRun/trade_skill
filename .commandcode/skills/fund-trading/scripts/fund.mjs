@@ -1,8 +1,13 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ensureUtf8Console, fail, isJsonMode, numberFlag, parseArgs } from "./lib/cli.mjs";
 import { table, money, pct, signed } from "./lib/format.mjs";
 import { loadFundList, navHistory, quoteFund, searchFunds } from "./lib/data.mjs";
 import { probe } from "./lib/http.mjs";
+import { PROJECT_ROOT } from "./lib/paths.mjs";
+import { saveScheduledTask } from "./lib/sqlite.mjs";
 
 ensureUtf8Console();
 
@@ -13,12 +18,14 @@ const USAGE = `基金行情与数据工具
   node fund.mjs nav <基金代码> [--pages N] [--page-size N] [--json]
   node fund.mjs search <关键词> [--limit N] [--json]
   node fund.mjs doctor [--json]
+  node fund.mjs setup [--daily 14:30] [--close 15:30] [--market otc|exchange] [--dry-run] [--uninstall] [--json]
 
 说明:
   quote  获取最新净值/价格（场外走净值，场内 ETF 走实时价格）
   nav    获取历史净值序列
   search 按代码/名称/拼音检索基金
-  doctor 检测数据源连通性`;
+  doctor 检测数据源连通性
+  setup  注册 Windows 每日定时任务（需要完整项目中的 fund-report）`;
 
 function print(data, renderHuman, flags) {
   if (isJsonMode(flags)) {
@@ -30,7 +37,7 @@ function print(data, renderHuman, flags) {
 
 async function run() {
   const [, , command, ...rest] = process.argv;
-  const valueFlags = ["pages", "page-size", "limit"];
+  const valueFlags = ["pages", "page-size", "limit", "daily", "close", "market", "project-root"];
   const { positional, flags } = parseArgs(rest, valueFlags);
 
   switch (command) {
@@ -126,6 +133,89 @@ async function run() {
           { label: "耗时/条数", value: (row) => row.latencyMs ?? "-" },
           { label: "错误", value: (row) => row.error ?? "" },
         ]),
+        flags,
+      );
+      return;
+    }
+
+    case "setup":
+    case "install-tasks": {
+      if (process.platform !== "win32") throw new Error("定时任务注册目前仅支持 Windows");
+      if (flags.daily === true) throw new Error("--daily 需要 HH:mm 时间");
+      if (flags.close === true) throw new Error("--close 需要 HH:mm 时间");
+      if (flags.market === true) throw new Error("--market 需要 otc 或 exchange");
+      if (flags["project-root"] === true) throw new Error("--project-root 需要目录路径");
+
+      const setupScript = path.join(path.dirname(fileURLToPath(import.meta.url)), "setup-tasks.ps1");
+      const args = [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        setupScript,
+        "-ProjectRoot",
+        String(flags["project-root"] ?? process.env.FUND_TRADE_PROJECT_ROOT ?? PROJECT_ROOT),
+        "-DailyTime",
+        String(flags.daily ?? "14:30"),
+        "-CloseTime",
+        String(flags.close ?? "15:30"),
+        "-Market",
+        String(flags.market ?? "otc"),
+      ];
+      for (const [name, parameter] of [
+        ["no-daily", "-NoDaily"],
+        ["no-close", "-NoClose"],
+        ["uninstall", "-Uninstall"],
+        ["dry-run", "-DryRun"],
+      ]) {
+        if (flags[name]) args.push(parameter);
+      }
+
+      const result = spawnSync("powershell.exe", args, {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 45000,
+      });
+      if (result.error) throw result.error;
+      const stdout = (result.stdout || "").trim();
+      let data;
+      try {
+        data = stdout ? JSON.parse(stdout) : null;
+      } catch {
+        throw new Error((result.stderr || stdout || "定时任务注册输出无法解析").trim());
+      }
+      if (result.status !== 0 || !data?.ok) {
+        throw new Error(data?.error || (result.stderr || stdout || "定时任务注册失败").trim());
+      }
+      if (!data.dryRun) {
+        for (const task of data.tasks) {
+          saveScheduledTask({
+            id: task.id,
+            type: task.type,
+            time: data.uninstall ? undefined : task.time,
+            market: data.uninstall ? undefined : task.market,
+            enabled: data.uninstall ? 0 : 1,
+          });
+        }
+      }
+
+      print(
+        data,
+        (payload) =>
+          table(payload.tasks, [
+            { label: "任务", value: (task) => task.id },
+            { label: "时间", value: (task) => task.time },
+            { label: "市场", value: (task) => task.market ?? "-" },
+            {
+              label: "状态",
+              value: (task) => {
+                if (payload.uninstall) return task.removed ? (payload.dryRun ? "待删除" : "已删除") : "不存在";
+                if (payload.dryRun) return "待注册";
+                return task.registered ? "已注册" : "未注册";
+              },
+            },
+          ]),
         flags,
       );
       return;

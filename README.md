@@ -90,6 +90,20 @@ Windows 计划任务：
 - `FundDailyReport`：默认每天 14:30，生成操作并自动记账
 - `FundDailyClose`：默认每天 15:30，生成收盘盈亏
 
+首次安装后可以直接用 skill 命令注册，不需要先启动后台：
+
+```powershell
+node .commandcode/skills/fund-trading/scripts/fund.mjs setup
+```
+
+可指定时间、市场和项目目录：
+
+```powershell
+node .commandcode/skills/fund-trading/scripts/fund.mjs setup --daily 14:30 --close 15:30 --market otc --project-root D:\MS-PRG\trade_skill
+```
+
+`--dry-run` 只预览，`--uninstall` 删除这两个任务并在 `scheduled_tasks` 中标记停用，`--no-daily` / `--no-close` 只注册其中一个。注册目前只支持 Windows，且需要完整的 `.commandcode/fund-report` 运行脚本；只安装 skill 目录不会包含这些脚本。
+
 管理台支持新增、编辑、删除定时任务；日报任务可以单独选择场外 / 场内，任务配置保存在 `scheduled_tasks`，Windows 计划任务由管理台同步注册和删除。
 
 任务只在开机且已登录时运行；睡眠会尝试唤醒，关机不会补跑。

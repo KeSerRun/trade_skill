@@ -230,7 +230,12 @@ export async function ensureTaskActions(db) {
     const current = windows.find((item) => item.id === task.id);
     const enabled = task.enabled === 1;
     const expected = actionArguments({ ...task, enabled });
-    if (current?.exists && current.action !== expected) {
+    if (!current?.exists) {
+      if (!enabled) continue;
+      await registerWindowsTask({ ...task, enabled });
+      continue;
+    }
+    if (current.action !== expected) {
       await registerWindowsTask({ ...task, enabled });
     }
   }

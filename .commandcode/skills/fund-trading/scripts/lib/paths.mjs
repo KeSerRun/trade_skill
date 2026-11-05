@@ -4,17 +4,26 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function hasProjectMarker(dir) {
+  return fs.existsSync(path.join(dir, ".commandcode")) || fs.existsSync(path.join(dir, ".git"));
+}
+
 function findProjectRoot(start) {
-  let dir = start;
+  if (process.env.FUND_TRADE_PROJECT_ROOT) {
+    return path.resolve(process.env.FUND_TRADE_PROJECT_ROOT);
+  }
+  const cwd = process.cwd();
+  const startInsideCwd = start === cwd || start.startsWith(cwd + path.sep);
+  const searchFrom = startInsideCwd ? start : cwd;
+
+  let dir = searchFrom;
   for (let i = 0; i < 12; i++) {
-    if (fs.existsSync(path.join(dir, ".commandcode")) || fs.existsSync(path.join(dir, ".git"))) {
-      return dir;
-    }
+    if (hasProjectMarker(dir)) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return process.cwd();
+  return cwd;
 }
 
 export const PROJECT_ROOT = findProjectRoot(__dirname);

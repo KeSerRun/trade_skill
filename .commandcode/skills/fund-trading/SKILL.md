@@ -32,6 +32,32 @@ node .commandcode/skills/fund-trading/scripts/risk.mjs
 - 账户、指令、资讯结论、交易规则、净值快照都存放在 `.fund-trading/fund.db`（SQLite）。
 - 终端输出为表格；被管道捕获时自动 JSON。**Agent 解析时显式加 `--json`。**
 
+## 安装后注册定时任务
+
+Windows 上首次安装后，用 skill 自带命令注册每日任务：
+
+```powershell
+node .commandcode/skills/fund-trading/scripts/fund.mjs setup
+```
+
+默认注册：
+
+- `FundDailyReport`：每天 14:30，`-Market otc`
+- `FundDailyClose`：每天 15:30
+
+可调整时间或市场：
+
+```powershell
+node .commandcode/skills/fund-trading/scripts/fund.mjs setup --daily 14:30 --close 15:30 --market exchange
+```
+
+- `--dry-run`：只打印将要注册的任务，不改系统。
+- `--uninstall`：删除这两个 Windows 计划任务，并把 `scheduled_tasks` 中对应任务标记为停用；不删除数据库和脚本。
+- `--no-daily` / `--no-close`：只注册其中一个。
+- `--project-root <目录>`：指定项目根目录；也可以用 `FUND_TRADE_PROJECT_ROOT`。
+- 注册命令目前只支持 Windows；运行任务需要完整项目中的 `.commandcode/fund-report`，只复制 skill 目录无法执行日报/收盘脚本。
+- 任务仍需要本机安装 Node.js 和 Command Code CLI；管理后台的「定时任务」页与这里注册的是同一组 Windows 任务。
+
 ## 核心概念
 
 - **资讯结论（verdict）**：对某基金近期公开信息的雷点/热点打分，立场为

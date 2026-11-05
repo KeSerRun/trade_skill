@@ -134,6 +134,16 @@ function ensureSchema(handle) {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL,
+      time TEXT NOT NULL,
+      market TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -383,6 +393,34 @@ export function loadNotifySettings() {
     pushplusToken: row?.pushplus_token ?? "",
     titlePrefix: row?.title_prefix ?? "基金日报",
   };
+}
+
+export function saveScheduledTask(task) {
+  const handle = getDb();
+  const existing = handle.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(task.id);
+  const time = task.time ?? existing?.time ?? "14:30";
+  const type = task.type ?? existing?.type ?? "daily";
+  const market = task.market === undefined ? existing?.market ?? null : task.market;
+  const defaultName = type === "daily" ? `${time} 操作` : `${time} 收盘`;
+  const name = existing?.name && !/^\d{2}:\d{2} (操作|收盘)$/.test(existing.name) ? existing.name : defaultName;
+  const createdAt = existing?.created_at ?? new Date().toISOString();
+  handle.prepare(
+    `INSERT INTO scheduled_tasks (id, name, type, time, market, enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name, type = excluded.type, time = excluded.time,
+       market = excluded.market, enabled = excluded.enabled, updated_at = excluded.updated_at`,
+  ).run(
+    String(task.id),
+    name,
+    type,
+    time,
+    market,
+    task.enabled === false || task.enabled === 0 ? 0 : 1,
+    createdAt,
+    new Date().toISOString(),
+  );
+  return { id: task.id, name, type, time, market, enabled: task.enabled === false || task.enabled === 0 ? 0 : 1 };
 }
 
 export function loadRulesFromDb() {
