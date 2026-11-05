@@ -411,6 +411,7 @@ onUnmounted(() => {
           {{ sessionLabel }}
         </span>
         <span class="market-updated">更新 {{ updatedLabel }}</span>
+        <el-button plain @click="$router.push('/products')">产品库</el-button>
         <el-button plain :loading="loading" @click="loadSnapshot">刷新</el-button>
       </div>
     </section>

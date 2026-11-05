@@ -42,6 +42,10 @@ async function refresh() {
           <el-icon><TrendCharts /></el-icon>
           <span>实时行情</span>
         </el-menu-item>
+        <el-menu-item index="/products">
+          <el-icon><Files /></el-icon>
+          <span>产品库</span>
+        </el-menu-item>
         <el-menu-item index="/positions">
           <el-icon><Wallet /></el-icon>
           <span>持仓管理</span>

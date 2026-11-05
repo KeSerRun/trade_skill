@@ -23,6 +23,9 @@ export const api = {
   marketTrend: (code) => request(`/market/trend?code=${encodeURIComponent(code)}`),
   marketCandles: (code, period = "day") =>
     request(`/market/candles?code=${encodeURIComponent(code)}&period=${encodeURIComponent(period)}`),
+  marketQuotes: (items) => request(`/market/quotes?items=${encodeURIComponent(items.join(","))}`),
+  products: (params = {}) => request(`/products?${new URLSearchParams(params)}`),
+  syncProducts: () => request("/products/sync", { method: "POST" }),
   updateAccount: (body) => request("/account", { method: "PUT", body: JSON.stringify(body) }),
   savePosition: (body) => request("/positions", { method: "POST", body: JSON.stringify(body) }),
   deletePosition: (code) => request(`/positions/${encodeURIComponent(code)}`, { method: "DELETE" }),

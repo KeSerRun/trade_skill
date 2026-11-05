@@ -117,6 +117,18 @@ function migrate(db) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
     );
+    CREATE TABLE IF NOT EXISTS products (
+      market TEXT NOT NULL,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT,
+      type TEXT NOT NULL,
+      benchmark TEXT,
+      sector TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (market, code)
+    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -200,6 +212,18 @@ function seed(db) {
     db.prepare(
       "INSERT INTO notify_settings (id, channel, wecom_webhook, serverchan_key, pushplus_token, title_prefix, updated_at) VALUES (1, 'none', '', '', '', '基金日报', ?)",
     ).run(now());
+  }
+
+  const insertProduct = db.prepare(
+    `INSERT OR IGNORE INTO products (market, code, name, category, type, benchmark, sector, status, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+  );
+  for (const item of [
+    { code: "000001", name: "上证指数", category: "指数", type: "index" },
+    { code: "399001", name: "深证成指", category: "指数", type: "index" },
+    { code: "399006", name: "创业板指", category: "指数", type: "index" },
+  ]) {
+    insertProduct.run("index", item.code, item.name, item.category, item.type, null, null, now());
   }
 }
 
@@ -288,6 +312,74 @@ export function upsertWatchlist(db, item) {
 
 export function deleteWatchlist(db, market, code) {
   return db.prepare("DELETE FROM watchlist WHERE market = ? AND code = ?").run(market, code).changes;
+}
+
+export function listProducts(db, { search = "", market = "", watched = false, page = 1, pageSize = 20 } = {}) {
+  const filters = ["p.status = 'active'"];
+  const params = [];
+  const query = String(search ?? "").trim();
+  if (query) {
+    filters.push("(p.code LIKE ? OR p.name LIKE ?)");
+    params.push(`%${query}%`, `%${query}%`);
+  }
+  const marketFilter = String(market ?? "").trim();
+  if (marketFilter && marketFilter !== "all") {
+    filters.push("p.market = ?");
+    params.push(marketFilter);
+  }
+  if (watched) {
+    filters.push("EXISTS (SELECT 1 FROM watchlist w WHERE w.market = p.market AND w.code = p.code)");
+  }
+  const where = filters.join(" AND ");
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM products p WHERE ${where}`).get(...params).n;
+  const safePage = Math.max(1, Number(page) || 1);
+  const safeSize = Math.min(100, Math.max(1, Number(pageSize) || 20));
+  const rows = db
+    .prepare(
+      `SELECT p.*, EXISTS (
+         SELECT 1 FROM watchlist w WHERE w.market = p.market AND w.code = p.code
+       ) AS watched
+       FROM products p
+       WHERE ${where}
+       ORDER BY CASE p.market WHEN 'index' THEN 0 WHEN 'exchange' THEN 1 ELSE 2 END, p.code
+       LIMIT ? OFFSET ?`,
+    )
+    .all(...params, safeSize, (safePage - 1) * safeSize);
+  const counts = { all: 0, index: 0, exchange: 0, otc: 0 };
+  for (const row of db.prepare("SELECT market, COUNT(*) AS n FROM products WHERE status = 'active' GROUP BY market").all()) {
+    if (counts[row.market] !== undefined) counts[row.market] = row.n;
+    counts.all += row.n;
+  }
+  return {
+    items: rows.map((row) => ({
+      key: `${row.market}:${row.code}`,
+      market: row.market,
+      code: row.code,
+      name: row.name,
+      category: row.category,
+      type: row.type,
+      benchmark: row.benchmark,
+      sector: row.sector,
+      status: row.status,
+      watched: row.watched === 1,
+    })),
+    total,
+    page: safePage,
+    pageSize: safeSize,
+    counts,
+  };
+}
+
+export function getProductsByKeys(db, keys) {
+  const statement = db.prepare("SELECT * FROM products WHERE market = ? AND code = ?");
+  const result = new Map();
+  for (const key of keys ?? []) {
+    const [market, ...rest] = String(key).split(":");
+    const code = rest.join(":");
+    const row = statement.get(market, code);
+    if (row) result.set(key, { ...row, key });
+  }
+  return result;
 }
 
 export function getAppSettings(db) {

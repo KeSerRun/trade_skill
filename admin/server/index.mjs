@@ -10,6 +10,8 @@ import {
   getMarketMode,
   getNotifySettings,
   getRules,
+  listPositions,
+  listProducts,
   listTrades,
   listWatchlist,
   openDb,
@@ -25,6 +27,7 @@ import {
 } from "./db.mjs";
 import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
 import { createMarket } from "./market.mjs";
+import { syncProducts } from "./products.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, "..");
@@ -341,6 +344,38 @@ const server = http.createServer(async (req, res) => {
       if (!code) throw new HttpError(400, "缺少基金代码");
       const period = url.searchParams.get("period") || "day";
       const data = await market.candles(code, period);
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/market/quotes") {
+      const items = String(url.searchParams.get("items") || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (items.length === 0) throw new HttpError(400, "缺少产品代码");
+      if (items.length > 50) throw new HttpError(400, "一次最多查询 50 个产品");
+      for (const item of items) {
+        if (!/^[a-z]+:[0-9A-Za-z.]+$/.test(item)) throw new HttpError(400, "产品代码格式不正确");
+      }
+      const data = await market.quotes(items);
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/products") {
+      const search = String(url.searchParams.get("search") || "");
+      const marketFilter = String(url.searchParams.get("market") || "");
+      const watched = url.searchParams.get("watched") === "1";
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      const data = listProducts(db, { search, market: marketFilter, watched, page, pageSize });
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/products/sync") {
+      const data = await syncProducts(db);
       sendJson(res, 200, { ok: true, ...data });
       return;
     }

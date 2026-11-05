@@ -1,4 +1,4 @@
-import { listWatchlist } from "./db.mjs";
+import { getProductsByKeys, listWatchlist } from "./db.mjs";
 
 const EASTMONEY_UT = "bd1d9ddb04089700cf9c27f6f7426281";
 const KLINE_PERIODS = {
@@ -309,6 +309,71 @@ export function createMarket(db) {
     return result;
   }
 
+  async function quotes(items) {
+    const keys = [...new Set(items ?? [])].slice(0, 50);
+    const products = getProductsByKeys(db, keys);
+    const symbols = [];
+    const placeholders = [];
+    for (const key of keys) {
+      const product = products.get(key);
+      if (!product) continue;
+      if (product.market === "otc") {
+        placeholders.push({
+          id: key,
+          key,
+          code: product.code,
+          name: product.name,
+          market: "otc",
+          type: "otc",
+          price: null,
+          prevClose: null,
+          open: null,
+          high: null,
+          low: null,
+          change: null,
+          changePct: null,
+          volume: null,
+          amount: null,
+          decimals: 3,
+          at: null,
+          source: "none",
+        });
+        continue;
+      }
+      symbols.push({
+        id: key,
+        key,
+        code: product.code,
+        name: product.name,
+        kind: product.type === "index" ? "index" : "etf",
+        group: product.market,
+        type: product.type,
+        secid: secidFor(product.code),
+      });
+    }
+    if (symbols.length === 0) {
+      return { quotes: placeholders, at: new Date().toISOString(), source: null, error: null };
+    }
+
+    let result = [];
+    let error = null;
+    try {
+      result = await fetchEastmoneyQuotes(symbols);
+    } catch (firstError) {
+      try {
+        result = await fetchTencentQuotes(symbols);
+      } catch (secondError) {
+        error = `${firstError.message}; ${secondError.message}`;
+      }
+    }
+    return {
+      quotes: [...result, ...placeholders],
+      at: new Date().toISOString(),
+      source: result[0]?.source ?? null,
+      error,
+    };
+  }
+
   async function candles(code, period = "day") {
     const clean = String(code ?? "").trim();
     if (!/^[0-9A-Za-z.]{4,12}$/.test(clean)) throw new Error("基金代码格式不正确");
@@ -367,5 +432,5 @@ export function createMarket(db) {
     return result;
   }
 
-  return { update, snapshot, subscribe, trend, candles };
+  return { update, snapshot, subscribe, trend, candles, quotes };
 }
