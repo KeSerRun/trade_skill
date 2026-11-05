@@ -1,6 +1,11 @@
 import { listWatchlist } from "./db.mjs";
 
 const EASTMONEY_UT = "bd1d9ddb04089700cf9c27f6f7426281";
+const KLINE_PERIODS = {
+  day: { klt: 101, limit: 120 },
+  week: { klt: 102, limit: 104 },
+  month: { klt: 103, limit: 60 },
+};
 const INDICES = [
   { code: "000001", name: "上证指数", kind: "index", group: "index", secid: "1.000001" },
   { code: "399001", name: "深证成指", kind: "index", group: "index", secid: "0.399001" },
@@ -173,6 +178,7 @@ async function fetchTencentQuotes(symbols) {
 export function createMarket(db) {
   const subscribers = new Set();
   const trendCache = new Map();
+  const candleCache = new Map();
   let cache = {
     ok: true,
     at: null,
@@ -303,5 +309,63 @@ export function createMarket(db) {
     return result;
   }
 
-  return { update, snapshot, subscribe, trend };
+  async function candles(code, period = "day") {
+    const clean = String(code ?? "").trim();
+    if (!/^[0-9A-Za-z.]{4,12}$/.test(clean)) throw new Error("基金代码格式不正确");
+    const normalized = period === "daily" ? "day" : period;
+    const config = KLINE_PERIODS[normalized];
+    if (!config) throw new Error("period 只能是 day、week 或 month");
+    const cacheKey = `${clean}:${normalized}`;
+    const cached = candleCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt < 60000) return cached.data;
+
+    const secid = secidFor(clean);
+    const url =
+      `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}` +
+      "&fields1=f1,f2,f3,f4,f5,f6" +
+      "&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61" +
+      `&klt=${config.klt}&fqt=1&beg=0&end=20500101&lmt=${config.limit}&ut=${EASTMONEY_UT}`;
+    const response = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error(`eastmoney kline HTTP ${response.status}`);
+    const payload = await response.json();
+    const data = payload?.data;
+    if (!data || !Array.isArray(data.klines) || data.klines.length === 0) {
+      throw new Error("没有历史数据");
+    }
+    const rows = data.klines
+      .map((row) => {
+        const [date, open, close, high, low, volume, amount, amplitude, changePct, change, turnover] =
+          row.split(",");
+        const price = Number(close);
+        if (!Number.isFinite(price)) return null;
+        return {
+          date,
+          open: Number(open),
+          close: price,
+          high: Number(high),
+          low: Number(low),
+          volume: Number(volume),
+          amount: Number(amount),
+          amplitude: Number(amplitude),
+          changePct: Number(changePct),
+          change: Number(change),
+          turnover: Number(turnover),
+        };
+      })
+      .filter(Boolean)
+      .slice(-config.limit);
+    const result = {
+      code: data.code || clean,
+      name: data.name || clean,
+      period: normalized,
+      decimals: Number(data.decimal) || (clean.startsWith("399") || clean === "000001" ? 2 : 3),
+      candles: rows,
+      at: new Date().toISOString(),
+      source: "eastmoney",
+    };
+    candleCache.set(cacheKey, { cachedAt: Date.now(), data: result });
+    return result;
+  }
+
+  return { update, snapshot, subscribe, trend, candles };
 }

@@ -8,6 +8,9 @@ const loading = ref(false);
 const selectedCode = ref("");
 const trend = ref(null);
 const trendLoading = ref(false);
+const candleData = ref({ candles: [], decimals: 3 });
+const candleLoading = ref(false);
+const chartPeriod = ref("intraday");
 const filter = ref("all");
 
 let source = null;
@@ -18,6 +21,12 @@ const filters = [
   { label: "指数", value: "index" },
   { label: "场内 ETF", value: "exchange" },
   { label: "场外对标", value: "otc" },
+];
+const periods = [
+  { label: "分时", value: "intraday" },
+  { label: "日K", value: "day" },
+  { label: "周K", value: "week" },
+  { label: "月K", value: "month" },
 ];
 
 const sessionLabels = {
@@ -32,10 +41,21 @@ const sourceLabels = {
 };
 
 const quotes = computed(() => snapshot.value.quotes ?? []);
+const candles = computed(() => candleData.value.candles ?? []);
 const selectedQuote = computed(() => quotes.value.find((item) => item.code === selectedCode.value) ?? null);
 const sessionLabel = computed(() => sessionLabels[snapshot.value.session] ?? "已收盘");
 const sessionActive = computed(() => snapshot.value.session === "trading");
 const updatedLabel = computed(() => formatTime(snapshot.value.at));
+const chartSubtitle = computed(() => {
+  if (chartPeriod.value === "intraday") {
+    return trend.value?.points?.length ? `分时走势 · ${trend.value.points.length} 个点` : "分时走势";
+  }
+  const label = periods.find((item) => item.value === chartPeriod.value)?.label ?? "K线";
+  return `${label} · ${candles.value.length} 根`;
+});
+const chartLoading = computed(() =>
+  chartPeriod.value === "intraday" ? trendLoading.value : candleLoading.value,
+);
 const sourceLabel = computed(() => {
   const names = [...new Set(quotes.value.map((item) => sourceLabels[item.source] ?? item.source))];
   return names.length ? names.join(" / ") : "东方财富";
@@ -104,6 +124,92 @@ const chart = computed(() => {
     lastY,
     color: last.price >= preClose ? "#ef4444" : "#16a34a",
   };
+});
+
+const candleChart = computed(() => {
+  const items = candles.value;
+  const empty = {
+    W: 860,
+    H: 360,
+    P: 18,
+    priceBottom: 245,
+    volumeTop: 270,
+    volumeBottom: 332,
+    items: [],
+    ticks: [],
+    volumeDivider: 0,
+  };
+  if (!items.length) return empty;
+
+  const width = 860;
+  const height = 360;
+  const pad = 18;
+  const priceBottom = 245;
+  const volumeTop = 270;
+  const volumeBottom = 332;
+  const high = Math.max(...items.map((item) => item.high));
+  const low = Math.min(...items.map((item) => item.low));
+  const spread = Math.max((high - low) * 0.08, Math.abs(high) * 0.001, 0.0001);
+  const min = low - spread;
+  const max = high + spread;
+  const y = (value) => pad + ((max - value) / (max - min)) * (priceBottom - pad);
+  const slot = (width - pad * 2) / items.length;
+  const bodyWidth = Math.max(1.5, slot * 0.62);
+  const volumeMax = Math.max(...items.map((item) => item.volume), 1);
+
+  const built = items.map((item, index) => {
+    const x = pad + slot * (index + 0.5);
+    const openY = y(item.open);
+    const closeY = y(item.close);
+    const top = Math.min(openY, closeY);
+    const volumeHeight = Math.max(0.5, (item.volume / volumeMax) * (volumeBottom - volumeTop));
+    return {
+      ...item,
+      x,
+      width: bodyWidth,
+      color: item.close >= item.open ? "#ef4444" : "#16a34a",
+      highY: y(item.high),
+      lowY: y(item.low),
+      top,
+      bodyHeight: Math.max(1, Math.abs(openY - closeY)),
+      volumeY: volumeBottom - volumeHeight,
+      volumeHeight,
+    };
+  });
+
+  return {
+    W: width,
+    H: height,
+    P: pad,
+    priceBottom,
+    volumeTop,
+    volumeBottom,
+    items: built,
+    ticks: [pad, (pad + priceBottom) / 2, priceBottom],
+    volumeDivider: volumeTop - 8,
+  };
+});
+
+const candleStats = computed(() => {
+  const items = candles.value;
+  if (!items.length) return [];
+  const last = items.at(-1);
+  const decimals = candleData.value.decimals ?? 3;
+  return [
+    { label: "区间最高", value: formatPriceValue(Math.max(...items.map((item) => item.high)), decimals) },
+    { label: "区间最低", value: formatPriceValue(Math.min(...items.map((item) => item.low)), decimals) },
+    { label: "最新收盘", value: formatPriceValue(last.close, decimals) },
+    { label: "周期涨跌", value: formatPct(last.changePct), className: trendClass(last.changePct) },
+  ];
+});
+
+const candleLabels = computed(() => {
+  const items = candles.value;
+  if (!items.length) return [];
+  const picks = [items[0], items[Math.floor(items.length / 2)], items.at(-1)];
+  return picks.map((item) =>
+    chartPeriod.value === "month" ? item.date.slice(0, 7) : item.date.slice(5),
+  );
 });
 
 const trendStats = computed(() => {
@@ -191,7 +297,7 @@ function applySnapshot(data) {
   const exists = nextQuotes.some((item) => item.code === selectedCode.value);
   if (!selectedCode.value || !exists) {
     selectedCode.value = nextQuotes[0].code;
-    loadTrend(selectedCode.value);
+    loadActiveChart(selectedCode.value);
   }
 }
 
@@ -220,13 +326,44 @@ async function loadTrend(code, silent = false) {
   }
 }
 
+async function loadCandles(code, period, silent = false) {
+  if (!code) return;
+  if (!silent) {
+    candleLoading.value = true;
+    candleData.value = { candles: [], decimals: 3 };
+  }
+  try {
+    const data = await api.marketCandles(code, period);
+    if (selectedCode.value === code && chartPeriod.value === period) candleData.value = data;
+  } catch (error) {
+    if (!silent) ElMessage.error(error.message);
+  } finally {
+    if (!silent) candleLoading.value = false;
+  }
+}
+
+function loadActiveChart(code = selectedCode.value) {
+  if (!code) return;
+  if (chartPeriod.value === "intraday") {
+    loadTrend(code);
+  } else {
+    loadCandles(code, chartPeriod.value);
+  }
+}
+
+function selectPeriod(period) {
+  if (chartPeriod.value === period) return;
+  chartPeriod.value = period;
+  loadActiveChart(selectedCode.value);
+}
+
 function selectQuote(quote) {
   if (selectedCode.value === quote.code) {
-    loadTrend(quote.code);
+    loadActiveChart(quote.code);
     return;
   }
   selectedCode.value = quote.code;
-  loadTrend(quote.code);
+  loadActiveChart(quote.code);
 }
 
 function connect() {
@@ -245,7 +382,12 @@ onMounted(() => {
   loadSnapshot();
   connect();
   trendTimer = setInterval(() => {
-    if (selectedCode.value) loadTrend(selectedCode.value, true);
+    if (!selectedCode.value) return;
+    if (chartPeriod.value === "intraday") {
+      loadTrend(selectedCode.value, true);
+    } else {
+      loadCandles(selectedCode.value, chartPeriod.value, true);
+    }
   }, 30000);
 });
 
@@ -281,7 +423,7 @@ onUnmounted(() => {
             <span class="mono">{{ selectedCode || "—" }}</span>
             <el-tag v-if="selectedQuote?.groups?.includes('otc')" size="small" effect="plain">场外对标</el-tag>
           </div>
-          <p>{{ trend?.points?.length ? `分时走势 · ${trend.points.length} 个点` : "分时走势" }}</p>
+          <p>{{ chartSubtitle }}</p>
         </div>
         <div v-if="selectedQuote" class="trend-price">
           <strong :class="trendClass(selectedQuote.changePct)">{{ formatPrice(selectedQuote) }}</strong>
@@ -290,12 +432,27 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="panel-body">
-        <div v-if="trendLoading" class="trend-loading">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          加载分时数据
+        <div class="chart-toolbar">
+          <div class="chart-tabs">
+            <button
+              v-for="item in periods"
+              :key="item.value"
+              type="button"
+              :class="{ active: chartPeriod === item.value }"
+              @click="selectPeriod(item.value)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <span v-if="chartPeriod !== 'intraday'" class="chart-note">前复权</span>
         </div>
-        <template v-else-if="chart.points.length">
-          <div class="trend-wrap">
+
+        <div v-if="chartLoading" class="trend-loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          {{ chartPeriod === "intraday" ? "加载分时数据" : "加载历史数据" }}
+        </div>
+        <template v-else-if="chartPeriod === 'intraday'">
+          <div v-if="chart.points.length" class="trend-wrap">
             <svg class="trend-svg" :viewBox="`0 0 ${chart.W} ${chart.H}`" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
@@ -336,8 +493,65 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+          <el-empty v-else description="暂无分时数据" :image-size="80" />
         </template>
-        <el-empty v-else description="暂无分时数据" :image-size="80" />
+        <template v-else>
+          <div v-if="candleChart.items.length" class="trend-wrap">
+            <svg class="trend-svg candle-svg" :viewBox="`0 0 ${candleChart.W} ${candleChart.H}`" preserveAspectRatio="none">
+              <line
+                v-for="(tick, index) in candleChart.ticks"
+                :key="index"
+                :x1="candleChart.P"
+                :x2="candleChart.W - candleChart.P"
+                :y1="tick"
+                :y2="tick"
+                class="trend-grid"
+              />
+              <line
+                :x1="candleChart.P"
+                :x2="candleChart.W - candleChart.P"
+                :y1="candleChart.volumeDivider"
+                :y2="candleChart.volumeDivider"
+                class="volume-divider"
+              />
+              <g v-for="candle in candleChart.items" :key="candle.date">
+                <line
+                  :x1="candle.x"
+                  :x2="candle.x"
+                  :y1="candle.highY"
+                  :y2="candle.lowY"
+                  :stroke="candle.color"
+                  stroke-width="1"
+                />
+                <rect
+                  :x="candle.x - candle.width / 2"
+                  :y="candle.top"
+                  :width="candle.width"
+                  :height="candle.bodyHeight"
+                  :fill="candle.color"
+                />
+                <rect
+                  :x="candle.x - candle.width / 2"
+                  :y="candle.volumeY"
+                  :width="candle.width"
+                  :height="candle.volumeHeight"
+                  :fill="candle.color"
+                  opacity="0.3"
+                />
+              </g>
+            </svg>
+            <div class="trend-axis">
+              <span v-for="(label, index) in candleLabels" :key="index">{{ label }}</span>
+            </div>
+            <div class="trend-stats">
+              <div v-for="item in candleStats" :key="item.label">
+                <span>{{ item.label }}</span>
+                <strong :class="item.className">{{ item.value }}</strong>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无历史数据" :image-size="80" />
+        </template>
       </div>
     </section>
 
@@ -537,10 +751,58 @@ onUnmounted(() => {
   padding: 10px 4px 4px;
 }
 
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.chart-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+
+.chart-tabs button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chart-tabs button.active {
+  background: #fff;
+  color: #3f58c6;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.chart-note {
+  color: var(--text-3);
+  font-size: 10px;
+}
+
 .trend-svg {
   display: block;
   width: 100%;
   height: 300px;
+}
+
+.candle-svg {
+  height: 340px;
+}
+
+.volume-divider {
+  stroke: #e2e8f0;
+  stroke-width: 1;
 }
 
 .trend-grid {
@@ -756,6 +1018,10 @@ onUnmounted(() => {
 @media (max-width: 760px) {
   .trend-svg {
     height: 230px;
+  }
+
+  .candle-svg {
+    height: 260px;
   }
 
   .trend-stats {

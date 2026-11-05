@@ -336,6 +336,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (method === "GET" && pathname === "/api/market/candles") {
+      const code = url.searchParams.get("code");
+      if (!code) throw new HttpError(400, "缺少基金代码");
+      const period = url.searchParams.get("period") || "day";
+      const data = await market.candles(code, period);
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/market/stream") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
