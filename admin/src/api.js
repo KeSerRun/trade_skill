@@ -42,7 +42,6 @@ export const api = {
   saveRuntime: (body) => request("/settings/runtime", { method: "PUT", body: JSON.stringify(body) }),
   saveAdvice: (body) => request("/settings/advice", { method: "PUT", body: JSON.stringify(body) }),
   saveNotify: (body) => request("/settings/notify", { method: "PUT", body: JSON.stringify(body) }),
-  setTradeMode: (mode) => request("/trade-mode", { method: "PUT", body: JSON.stringify({ mode }) }),
   updateTask: (name, body) => request(`/tasks/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(body) }),
   runTask: (name) => request(`/tasks/${encodeURIComponent(name)}/run`, { method: "POST" }),
 };

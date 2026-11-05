@@ -7,8 +7,6 @@ const tasks = ref([]);
 const loading = ref(false);
 const saving = ref("");
 const running = ref("");
-const mode = ref("otc");
-const watchlists = ref({ otc: [], exchange: [] });
 const forms = reactive({});
 const taskDialogVisible = ref(false);
 const editingTaskId = ref("");
@@ -22,7 +20,6 @@ const taskForm = reactive({
 });
 
 const enabledCount = computed(() => tasks.value.filter((task) => task.enabled).length);
-const modeLabel = computed(() => (mode.value === "otc" ? "场外" : "场内"));
 
 const nextRunAt = computed(() => {
   const times = tasks.value
@@ -36,10 +33,10 @@ const nextRunAt = computed(() => {
 
 const summaryItems = computed(() => [
   {
-    label: "默认市场",
-    value: modeLabel.value,
-    tone: mode.value === "otc" ? "indigo" : "teal",
-    icon: "Wallet",
+    label: "任务数量",
+    value: tasks.value.length,
+    tone: "indigo",
+    icon: "List",
   },
   {
     label: "已启用任务",
@@ -66,8 +63,6 @@ async function load() {
   try {
     const data = await api.tasks();
     tasks.value = data.tasks;
-    mode.value = data.mode ?? "otc";
-    watchlists.value = data.watchlists ?? { otc: [], exchange: [] };
     for (const task of data.tasks) {
       forms[task.id] = {
         time: task.time ?? "14:30",
@@ -138,23 +133,6 @@ async function toggle(task) {
   await save(task);
 }
 
-async function switchMode(next) {
-  if (!next || next === mode.value) return;
-  const label = next === "otc" ? "场外" : "场内";
-  try {
-    await ElMessageBox.confirm(
-      `切换为${label}后，下一次 14:30 会使用对应的关注列表和交易规则。已持仓不受影响，确定切换？`,
-      "切换交易市场",
-      { type: "warning", confirmButtonText: "切换", cancelButtonText: "取消" },
-    );
-    await api.setTradeMode(next);
-    await load();
-    ElMessage.success(`已切换为${label}`);
-  } catch (error) {
-    if (error !== "cancel" && error?.message) ElMessage.error(error.message);
-  }
-}
-
 async function runNow(task) {
   try {
     await ElMessageBox.confirm(
@@ -179,7 +157,7 @@ function openCreateTask() {
     name: "",
     type: "daily",
     time: "14:30",
-    market: mode.value,
+    market: "otc",
     enabled: true,
   });
   taskDialogVisible.value = true;
@@ -191,7 +169,7 @@ function openEditTask(task) {
     name: task.name,
     type: task.type,
     time: task.time ?? "14:30",
-    market: task.market ?? mode.value,
+    market: task.market ?? "otc",
     enabled: Boolean(task.enabled),
   });
   taskDialogVisible.value = true;
@@ -258,8 +236,7 @@ async function removeTask(task) {
       </div>
     </section>
 
-    <div class="tasks-layout">
-      <div class="tasks-main">
+    <div class="tasks-main">
         <div class="tasks-list-head">
           <div>
             <h3>执行任务</h3>
@@ -376,45 +353,6 @@ async function removeTask(task) {
         </div>
 
         <el-empty v-else description="还没有计划任务，点击新增任务" :image-size="90" />
-      </div>
-
-      <aside class="tasks-side">
-        <section class="panel market-panel">
-          <div class="panel-head">
-            <div>
-              <h3>默认市场</h3>
-              <p>新建日报任务默认使用，可被任务单独覆盖</p>
-            </div>
-            <el-tag :type="mode === 'otc' ? 'primary' : 'success'" effect="light" round>{{ modeLabel }}</el-tag>
-          </div>
-          <div class="panel-body">
-            <el-radio-group
-              class="market-switch"
-              :model-value="mode"
-              @change="switchMode"
-            >
-              <el-radio-button value="otc">场外 T+2</el-radio-button>
-              <el-radio-button value="exchange">场内 T+1</el-radio-button>
-            </el-radio-group>
-
-            <div class="market-rule">
-              <span class="market-rule-label">当前默认</span>
-              <strong>{{ mode === "otc" ? "场外 T+2" : "场内 T+1" }}</strong>
-              <span class="market-rule-note">候选 {{ (watchlists[mode] || []).length }} 只</span>
-            </div>
-
-            <div class="mode-funds">
-              <el-tag v-for="fund in watchlists[mode] || []" :key="fund.code" size="large" effect="plain">
-                {{ fund.code }} {{ fund.name || fund.sector || "" }}
-              </el-tag>
-            </div>
-
-            <p class="tasks-note">
-              每个日报任务可以在卡片内单独选择场外 / 场内；这里只决定新建任务的默认值和手动运行时的回退市场。
-            </p>
-          </div>
-        </section>
-      </aside>
     </div>
 
     <section class="panel tasks-help">
@@ -624,21 +562,8 @@ async function removeTask(task) {
   background: #f1f5f9;
 }
 
-.tasks-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(340px, 0.85fr);
-  align-items: start;
-  gap: 16px;
-}
-
 .tasks-main {
   min-width: 0;
-}
-
-.tasks-side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .tasks-list-head {
@@ -855,55 +780,6 @@ async function removeTask(task) {
   font-weight: 500;
 }
 
-.market-switch {
-  display: flex;
-  width: 100%;
-}
-
-.market-switch :deep(.el-radio-button) {
-  flex: 1;
-}
-
-.market-switch :deep(.el-radio-button__inner) {
-  width: 100%;
-}
-
-.market-rule {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 16px 0 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--surface-soft);
-}
-
-.market-rule-label {
-  color: var(--text-3);
-  font-size: 10px;
-}
-
-.market-rule strong {
-  font-size: 13px;
-}
-
-.market-rule-note {
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: 11px;
-}
-
-.market-panel .mode-funds {
-  margin-bottom: 4px;
-}
-
-.tasks-note {
-  margin: 12px 0 0;
-  color: var(--text-3);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
 .tasks-help .panel-body {
   padding: 16px 20px 20px;
 }
@@ -943,12 +819,6 @@ async function removeTask(task) {
   color: var(--text-3);
   font-size: 11px;
   line-height: 1.6;
-}
-
-@media (max-width: 1200px) {
-  .tasks-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 1080px) {

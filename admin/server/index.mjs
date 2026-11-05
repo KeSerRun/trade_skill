@@ -7,7 +7,6 @@ import {
   deleteWatchlist,
   getAdviceSettings,
   getAppSettings,
-  getMarketMode,
   getNotifySettings,
   getProductsByKeys,
   getRules,
@@ -19,7 +18,6 @@ import {
   setAccount,
   setAdviceSettings,
   setAppSettings,
-  setMarketMode,
   setNotifySettings,
   setRules,
   stateSummary,
@@ -509,8 +507,6 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, {
         ok: true,
         tasks: await listTasks(db),
-        mode: getMarketMode(db),
-        watchlists: watchlistsPayload(),
       });
       return;
     }
@@ -525,15 +521,6 @@ const server = http.createServer(async (req, res) => {
         enabled: body.enabled === undefined ? true : Boolean(body.enabled),
       });
       sendJson(res, 200, { ok: true, tasks });
-      return;
-    }
-
-    if (method === "PUT" && pathname === "/api/trade-mode") {
-      const body = await readBody(req);
-      const mode = String(body.mode ?? "");
-      if (mode !== "otc" && mode !== "exchange") throw new HttpError(400, "mode 只能是 otc 或 exchange");
-      setMarketMode(db, mode);
-      sendJson(res, 200, { ok: true, mode, watchlists: watchlistsPayload() });
       return;
     }
 
