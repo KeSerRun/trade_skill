@@ -126,6 +126,8 @@ powershell -ExecutionPolicy Bypass -File .commandcode\fund-report\run-daily.ps1 
 
 运行时还会产生 `cache/`（行情缓存）、`collect/`、`reports/`、`logs/`，这些是可删除的缓存和产物，不是交易数据的副本。
 
+`fund.db` 使用 WAL 模式，`fund.db-wal` 是数据库的一部分。不要在服务运行或未 checkpoint 时删除它，否则可能丢失已提交的交易；需要清理时先执行 `PRAGMA wal_checkpoint(TRUNCATE)`。管理后台总览每 30 秒自动刷新一次。
+
 ## 命令行
 
 ```bash

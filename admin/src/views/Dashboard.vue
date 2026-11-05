@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { store, loadState, money, pct, signed } from "../store";
 
 const palette = ["#4f6ef7", "#0ea5a4", "#8b5cf6", "#f59e0b", "#ef4444", "#14b8a6"];
@@ -58,7 +58,20 @@ const stats = computed(() => {
   ];
 });
 
-onMounted(loadState);
+let refreshTimer = null;
+
+onMounted(() => {
+  loadState();
+  window.addEventListener("focus", loadState);
+  refreshTimer = setInterval(() => {
+    if (document.visibilityState === "visible" && !store.loading) loadState();
+  }, 30000);
+});
+
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer);
+  window.removeEventListener("focus", loadState);
+});
 </script>
 
 <template>
