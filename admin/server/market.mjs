@@ -179,6 +179,7 @@ export function createMarket(db) {
   const subscribers = new Set();
   const trendCache = new Map();
   const candleCache = new Map();
+  const navCache = new Map();
   let cache = {
     ok: true,
     at: null,
@@ -374,6 +375,53 @@ export function createMarket(db) {
     };
   }
 
+  async function navs(items) {
+    const keys = [...new Set(items ?? [])].slice(0, 50);
+    const products = getProductsByKeys(db, keys);
+    const result = [];
+
+    await Promise.all(
+      keys.map(async (key) => {
+        const product = products.get(key);
+        if (!product || product.market !== "otc") return;
+        const cached = navCache.get(key);
+        if (cached && Date.now() - cached.cachedAt < 10 * 60 * 1000) {
+          result.push(cached.data);
+          return;
+        }
+        try {
+          const url =
+            `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${encodeURIComponent(product.code)}` +
+            "&pageIndex=1&pageSize=1&startDate=&endDate=";
+          const response = await fetch(url, {
+            headers: { Referer: "https://fundf10.eastmoney.com/", "User-Agent": "Mozilla/5.0" },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const row = payload?.Data?.LSJZList?.[0];
+          if (!row) return;
+          const data = {
+            id: key,
+            key,
+            code: product.code,
+            name: product.name,
+            nav: Number(row.DWJZ),
+            navDate: row.FSRQ,
+            changePct: row.JZZZL === "" || row.JZZZL === undefined ? null : Number(row.JZZZL),
+            source: "eastmoney-lsjz",
+          };
+          navCache.set(key, { cachedAt: Date.now(), data });
+          result.push(data);
+        } catch {
+          // 单只基金净值失败不影响整页
+        }
+      }),
+    );
+
+    return { navs: result, at: new Date().toISOString() };
+  }
+
   async function candles(code, period = "day") {
     const clean = String(code ?? "").trim();
     if (!/^[0-9A-Za-z.]{4,12}$/.test(clean)) throw new Error("基金代码格式不正确");
@@ -432,5 +480,5 @@ export function createMarket(db) {
     return result;
   }
 
-  return { update, snapshot, subscribe, trend, candles, quotes };
+  return { update, snapshot, subscribe, trend, candles, quotes, navs };
 }

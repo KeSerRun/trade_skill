@@ -24,6 +24,7 @@ export const api = {
   marketCandles: (code, period = "day") =>
     request(`/market/candles?code=${encodeURIComponent(code)}&period=${encodeURIComponent(period)}`),
   marketQuotes: (items) => request(`/market/quotes?items=${encodeURIComponent(items.join(","))}`),
+  marketNavs: (items) => request(`/market/navs?items=${encodeURIComponent(items.join(","))}`),
   products: (params = {}) => request(`/products?${new URLSearchParams(params)}`),
   syncProducts: () => request("/products/sync", { method: "POST" }),
   updateAccount: (body) => request("/account", { method: "PUT", body: JSON.stringify(body) }),

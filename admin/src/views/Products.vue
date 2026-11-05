@@ -13,9 +13,11 @@ const search = ref("");
 const marketFilter = ref("all");
 const watchedOnly = ref(false);
 const quotes = ref({});
+const navs = ref({});
 const counts = reactive({ all: 0, index: 0, exchange: 0, otc: 0 });
 
 let quoteTimer = null;
+let navTimer = null;
 
 const marketOptions = [
   { label: "全部", value: "all" },
@@ -50,7 +52,10 @@ async function load() {
     items.value = data.items;
     total.value = data.total;
     Object.assign(counts, data.counts);
+    quotes.value = {};
+    navs.value = {};
     await loadQuotes();
+    loadNavs();
   } catch (error) {
     ElMessage.error(error.message);
   } finally {
@@ -65,15 +70,46 @@ async function loadQuotes() {
     return;
   }
   try {
-    const data = await api.marketQuotes(keys);
-    quotes.value = Object.fromEntries((data.quotes ?? []).map((quote) => [quote.id ?? quote.key, quote]));
+    const chunks = [];
+    for (let index = 0; index < keys.length; index += 50) chunks.push(keys.slice(index, index + 50));
+    const pages = await Promise.all(chunks.map((chunk) => api.marketQuotes(chunk)));
+    quotes.value = Object.fromEntries(
+      pages.flatMap((data) => data.quotes ?? []).map((quote) => [quote.id ?? quote.key, quote]),
+    );
   } catch {
     // 行情失败不影响产品列表
   }
 }
 
+async function loadNavs() {
+  const keys = items.value.filter((item) => item.market === "otc").map((item) => item.key);
+  if (keys.length === 0) {
+    navs.value = {};
+    return;
+  }
+  try {
+    const chunks = [];
+    for (let index = 0; index < keys.length; index += 50) chunks.push(keys.slice(index, index + 50));
+    const pages = await Promise.all(chunks.map((chunk) => api.marketNavs(chunk)));
+    navs.value = Object.fromEntries(
+      pages.flatMap((data) => data.navs ?? []).map((nav) => [nav.id ?? nav.key, nav]),
+    );
+  } catch {
+    // 净值失败不影响产品列表
+  }
+}
+
 function quoteFor(row) {
   return quotes.value[row.key];
+}
+
+function navFor(row) {
+  return navs.value[row.key];
+}
+
+function formatNav(nav) {
+  if (!nav || nav.nav === null || nav.nav === undefined) return "—";
+  return Number(nav.nav).toFixed(4);
 }
 
 function formatPrice(quote, row) {
@@ -157,10 +193,14 @@ onMounted(() => {
   quoteTimer = setInterval(() => {
     if (document.visibilityState === "visible") loadQuotes();
   }, 5000);
+  navTimer = setInterval(() => {
+    if (document.visibilityState === "visible") loadNavs();
+  }, 5 * 60 * 1000);
 });
 
 onUnmounted(() => {
   if (quoteTimer) clearInterval(quoteTimer);
+  if (navTimer) clearInterval(navTimer);
 });
 </script>
 
@@ -170,7 +210,7 @@ onUnmounted(() => {
       <div>
         <span class="products-eyebrow">全量产品</span>
         <h2>基金与 ETF 产品库</h2>
-        <p>全市场产品元数据 · 当前页行情按需刷新 · 场外基金不显示实时价格</p>
+        <p>全市场产品元数据 · 当前页行情按需刷新 · 场外基金显示最新净值，不是实时价格</p>
       </div>
       <el-button plain :loading="syncing" @click="syncProducts">同步产品库</el-button>
     </section>
@@ -221,9 +261,15 @@ onUnmounted(() => {
             <el-table-column label="市场" width="80">
               <template #default="{ row }">{{ marketLabels[row.market] ?? row.market }}</template>
             </el-table-column>
-            <el-table-column label="最新价" width="100">
+            <el-table-column label="最新价 / 净值" width="120">
               <template #default="{ row }">
-                <span v-if="quoteFor(row)?.price != null" :class="trendClass(quoteFor(row)?.changePct)">
+                <template v-if="row.market === 'otc'">
+                  <span v-if="navFor(row)" :title="`净值日期 ${navFor(row).navDate}`">
+                    {{ formatNav(navFor(row)) }}<span class="nav-tag">净值</span>
+                  </span>
+                  <span v-else class="muted">—</span>
+                </template>
+                <span v-else-if="quoteFor(row)?.price != null" :class="trendClass(quoteFor(row)?.changePct)">
                   {{ formatPrice(quoteFor(row), row) }}
                 </span>
                 <span v-else class="muted">—</span>
@@ -231,7 +277,17 @@ onUnmounted(() => {
             </el-table-column>
             <el-table-column label="涨跌幅" width="100">
               <template #default="{ row }">
-                <span v-if="quoteFor(row)?.changePct != null" :class="trendClass(quoteFor(row)?.changePct)">
+                <template v-if="row.market === 'otc'">
+                  <span
+                    v-if="navFor(row)?.changePct != null"
+                    :class="trendClass(navFor(row)?.changePct)"
+                    :title="`净值日期 ${navFor(row).navDate}`"
+                  >
+                    {{ formatPct(navFor(row)?.changePct) }}
+                  </span>
+                  <span v-else class="muted">—</span>
+                </template>
+                <span v-else-if="quoteFor(row)?.changePct != null" :class="trendClass(quoteFor(row)?.changePct)">
                   {{ formatPct(quoteFor(row)?.changePct) }}
                 </span>
                 <span v-else class="muted">—</span>
@@ -380,6 +436,18 @@ onUnmounted(() => {
 .muted {
   color: var(--text-3);
   font-size: 12px;
+}
+
+.nav-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: var(--text-3);
+  font-size: 9px;
+  font-weight: 500;
+  vertical-align: 2px;
 }
 
 @media (max-width: 640px) {

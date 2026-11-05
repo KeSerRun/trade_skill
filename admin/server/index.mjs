@@ -364,6 +364,21 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (method === "GET" && pathname === "/api/market/navs") {
+      const items = String(url.searchParams.get("items") || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (items.length === 0) throw new HttpError(400, "缺少产品代码");
+      if (items.length > 50) throw new HttpError(400, "一次最多查询 50 个产品");
+      for (const item of items) {
+        if (!/^[a-z]+:[0-9A-Za-z.]+$/.test(item)) throw new HttpError(400, "产品代码格式不正确");
+      }
+      const data = await market.navs(items);
+      sendJson(res, 200, { ok: true, ...data });
+      return;
+    }
+
     if (method === "GET" && pathname === "/api/products") {
       const search = String(url.searchParams.get("search") || "");
       const marketFilter = String(url.searchParams.get("market") || "");
