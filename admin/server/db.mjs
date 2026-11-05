@@ -127,6 +127,16 @@ function migrate(db) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
     ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      time TEXT NOT NULL,
+      market TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -223,6 +233,15 @@ function seed(db) {
   ]) {
     insertProduct.run("index", item.code, item.name, item.category, item.type, now());
   }
+
+  const modeRow = db.prepare("SELECT value FROM meta WHERE key = 'market_mode'").get();
+  const defaultMarket = modeRow?.value === "exchange" ? "exchange" : "otc";
+  const insertTask = db.prepare(
+    `INSERT OR IGNORE INTO scheduled_tasks (id, name, type, time, market, enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+  );
+  insertTask.run("FundDailyReport", "14:30 操作", "daily", "14:30", defaultMarket, now(), now());
+  insertTask.run("FundDailyClose", "15:30 收盘", "close", "15:30", null, now(), now());
 }
 
 export function openDb(dbPath) {
@@ -334,6 +353,44 @@ export function upsertWatchlist(db, item) {
 
 export function deleteWatchlist(db, market, code) {
   return db.prepare("DELETE FROM watchlist WHERE market = ? AND code = ?").run(market, code).changes;
+}
+
+export function listScheduledTasks(db) {
+  return db.prepare("SELECT * FROM scheduled_tasks ORDER BY time, id").all().map((row) => ({ ...row }));
+}
+
+export function getScheduledTask(db, id) {
+  return db.prepare("SELECT * FROM scheduled_tasks WHERE id = ?").get(id) ?? null;
+}
+
+export function createScheduledTask(db, task) {
+  const at = now();
+  db.prepare(
+    `INSERT INTO scheduled_tasks (id, name, type, time, market, enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(task.id, task.name, task.type, task.time, task.market || null, task.enabled ? 1 : 0, at, at);
+  return getScheduledTask(db, task.id);
+}
+
+export function updateScheduledTask(db, id, patch) {
+  const current = getScheduledTask(db, id);
+  if (!current) return null;
+  const next = { ...current, ...patch };
+  db.prepare(
+    "UPDATE scheduled_tasks SET name = ?, type = ?, time = ?, market = ?, enabled = ?, updated_at = ? WHERE id = ?",
+  ).run(next.name, next.type, next.time, next.market || null, next.enabled ? 1 : 0, now(), id);
+  return getScheduledTask(db, id);
+}
+
+export function deleteScheduledTask(db, id) {
+  return db.prepare("DELETE FROM scheduled_tasks WHERE id = ?").run(id).changes;
+}
+
+export function countDailyTasks(db, excludeId = null) {
+  if (excludeId) {
+    return db.prepare("SELECT COUNT(*) AS n FROM scheduled_tasks WHERE type = 'daily' AND id != ?").get(excludeId).n;
+  }
+  return db.prepare("SELECT COUNT(*) AS n FROM scheduled_tasks WHERE type = 'daily'").get().n;
 }
 
 export function listProducts(db, { search = "", market = "", watched = false, page = 1, pageSize = 20 } = {}) {

@@ -26,7 +26,7 @@ import {
   upsertPosition,
   upsertWatchlist,
 } from "./db.mjs";
-import { TASKS, listTasks, runTask, updateTask } from "./tasks.mjs";
+import { createTask, deleteTask, ensureTaskActions, listTasks, runTask, updateTask } from "./tasks.mjs";
 import { createMarket } from "./market.mjs";
 import { syncProducts } from "./products.mjs";
 
@@ -57,6 +57,7 @@ const host = hostFlag === true ? "0.0.0.0" : hostFlag || process.env.HOST || "12
 
 const db = openDb(dbPath);
 const market = createMarket(db);
+await ensureTaskActions(db).catch((error) => console.error("task action sync failed:", error.message));
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -507,10 +508,23 @@ const server = http.createServer(async (req, res) => {
     if (method === "GET" && pathname === "/api/tasks") {
       sendJson(res, 200, {
         ok: true,
-        tasks: await listTasks(),
+        tasks: await listTasks(db),
         mode: getMarketMode(db),
         watchlists: watchlistsPayload(),
       });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/tasks") {
+      const body = await readBody(req);
+      const tasks = await createTask(db, {
+        name: body.name === undefined ? "" : String(body.name),
+        type: body.type === undefined ? "daily" : String(body.type),
+        time: body.time === undefined ? "14:30" : String(body.time),
+        market: body.market === undefined ? "otc" : String(body.market),
+        enabled: body.enabled === undefined ? true : Boolean(body.enabled),
+      });
+      sendJson(res, 200, { ok: true, tasks });
       return;
     }
 
@@ -565,21 +579,29 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (method === "PUT" && pathname.startsWith("/api/tasks/")) {
-      const name = decodeURIComponent(pathname.slice("/api/tasks/".length));
-      if (!TASKS[name]) throw new HttpError(404, "未知任务");
+      const id = decodeURIComponent(pathname.slice("/api/tasks/".length));
       const body = await readBody(req);
-      const tasks = await updateTask(name, {
+      const tasks = await updateTask(db, id, {
+        name: body.name === undefined ? undefined : String(body.name),
+        type: body.type === undefined ? undefined : String(body.type),
         time: body.time === undefined ? undefined : String(body.time),
+        market: body.market === undefined ? undefined : String(body.market),
         enabled: body.enabled === undefined ? undefined : Boolean(body.enabled),
       });
       sendJson(res, 200, { ok: true, tasks });
       return;
     }
 
+    if (method === "DELETE" && pathname.startsWith("/api/tasks/")) {
+      const id = decodeURIComponent(pathname.slice("/api/tasks/".length));
+      const tasks = await deleteTask(db, id);
+      sendJson(res, 200, { ok: true, tasks });
+      return;
+    }
+
     if (method === "POST" && pathname.startsWith("/api/tasks/") && pathname.endsWith("/run")) {
-      const name = decodeURIComponent(pathname.slice("/api/tasks/".length, -"/run".length));
-      if (!TASKS[name]) throw new HttpError(404, "未知任务");
-      const tasks = await runTask(name);
+      const id = decodeURIComponent(pathname.slice("/api/tasks/".length, -"/run".length));
+      const tasks = await runTask(db, id);
       sendJson(res, 200, { ok: true, tasks });
       return;
     }

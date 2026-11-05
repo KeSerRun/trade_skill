@@ -10,6 +10,16 @@ const running = ref("");
 const mode = ref("otc");
 const watchlists = ref({ otc: [], exchange: [] });
 const forms = reactive({});
+const taskDialogVisible = ref(false);
+const editingTaskId = ref("");
+const taskSaving = ref(false);
+const taskForm = reactive({
+  name: "",
+  type: "daily",
+  time: "14:30",
+  market: "otc",
+  enabled: true,
+});
 
 const enabledCount = computed(() => tasks.value.filter((task) => task.enabled).length);
 const modeLabel = computed(() => (mode.value === "otc" ? "场外" : "场内"));
@@ -26,7 +36,7 @@ const nextRunAt = computed(() => {
 
 const summaryItems = computed(() => [
   {
-    label: "当前市场",
+    label: "默认市场",
     value: modeLabel.value,
     tone: mode.value === "otc" ? "indigo" : "teal",
     icon: "Wallet",
@@ -59,8 +69,9 @@ async function load() {
     mode.value = data.mode ?? "otc";
     watchlists.value = data.watchlists ?? { otc: [], exchange: [] };
     for (const task of data.tasks) {
-      forms[task.name] = {
+      forms[task.id] = {
         time: task.time ?? "14:30",
+        market: task.market ?? "otc",
         enabled: Boolean(task.enabled),
       };
     }
@@ -86,11 +97,11 @@ function formatDate(value) {
 }
 
 function taskTone(task) {
-  return task.name === "FundDailyClose" ? "teal" : "indigo";
+  return task.type === "close" ? "teal" : "indigo";
 }
 
 function taskIcon(task) {
-  return task.name === "FundDailyClose" ? "TrendCharts" : "AlarmClock";
+  return task.type === "close" ? "TrendCharts" : "AlarmClock";
 }
 
 function resultTone(task) {
@@ -106,11 +117,12 @@ function missedTone(task) {
 }
 
 async function save(task) {
-  saving.value = task.name;
+  saving.value = task.id;
   try {
-    await api.updateTask(task.name, {
-      time: forms[task.name].time,
-      enabled: forms[task.name].enabled,
+    await api.updateTask(task.id, {
+      time: forms[task.id].time,
+      market: task.type === "daily" ? forms[task.id].market : null,
+      enabled: forms[task.id].enabled,
     });
     await load();
     ElMessage.success("任务已更新");
@@ -146,18 +158,83 @@ async function switchMode(next) {
 async function runNow(task) {
   try {
     await ElMessageBox.confirm(
-      `立即运行「${task.label}」会执行对应脚本，可能推送消息，确定继续？`,
+      `立即运行「${task.name}」会执行对应脚本，可能推送消息，确定继续？`,
       "立即运行",
       { type: "warning", confirmButtonText: "运行", cancelButtonText: "取消" },
     );
-    running.value = task.name;
-    await api.runTask(task.name);
+    running.value = task.id;
+    await api.runTask(task.id);
     await load();
     ElMessage.success("已触发运行");
   } catch (error) {
     if (error !== "cancel" && error?.message) ElMessage.error(error.message);
   } finally {
     running.value = "";
+  }
+}
+
+function openCreateTask() {
+  editingTaskId.value = "";
+  Object.assign(taskForm, {
+    name: "",
+    type: "daily",
+    time: "14:30",
+    market: mode.value,
+    enabled: true,
+  });
+  taskDialogVisible.value = true;
+}
+
+function openEditTask(task) {
+  editingTaskId.value = task.id;
+  Object.assign(taskForm, {
+    name: task.name,
+    type: task.type,
+    time: task.time ?? "14:30",
+    market: task.market ?? mode.value,
+    enabled: Boolean(task.enabled),
+  });
+  taskDialogVisible.value = true;
+}
+
+async function saveTaskForm() {
+  taskSaving.value = true;
+  try {
+    const body = {
+      name: taskForm.name.trim(),
+      type: taskForm.type,
+      time: taskForm.time,
+      market: taskForm.type === "daily" ? taskForm.market : null,
+      enabled: taskForm.enabled,
+    };
+    if (editingTaskId.value) {
+      await api.updateTask(editingTaskId.value, body);
+      ElMessage.success("任务已更新");
+    } else {
+      await api.createTask(body);
+      ElMessage.success("任务已创建");
+    }
+    taskDialogVisible.value = false;
+    await load();
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    taskSaving.value = false;
+  }
+}
+
+async function removeTask(task) {
+  try {
+    await ElMessageBox.confirm(
+      `删除「${task.name}」会同时移除 Windows 计划任务，且不可恢复。确定删除？`,
+      "删除定时任务",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
+    );
+    await api.deleteTask(task.id);
+    await load();
+    ElMessage.success("任务已删除");
+  } catch (error) {
+    if (error !== "cancel" && error?.message) ElMessage.error(error.message);
   }
 }
 </script>
@@ -167,8 +244,8 @@ async function runNow(task) {
     <section class="tasks-overview">
       <div class="tasks-overview-copy">
         <span class="tasks-eyebrow">调度状态</span>
-        <h2>每天 14:30 操作，15:30 收盘</h2>
-        <p>由 Windows 计划任务触发，管理台只读取和修改系统任务，不维护独立定时器。</p>
+        <h2>日报与收盘任务</h2>
+        <p>每个任务独立设置时间和市场；由 Windows 计划任务触发，管理台只读取和修改系统任务。</p>
       </div>
       <div class="tasks-status">
         <div v-for="item in summaryItems" :key="item.label" class="status-chip" :class="`is-${item.tone}`">
@@ -186,15 +263,18 @@ async function runNow(task) {
         <div class="tasks-list-head">
           <div>
             <h3>执行任务</h3>
-            <p>修改时间或启停会直接写入 Windows 计划任务</p>
+            <p>修改时间、市场或启停会直接写入 Windows 计划任务</p>
           </div>
-          <el-button plain :loading="loading" @click="load">刷新状态</el-button>
+          <div class="task-list-actions">
+            <el-button plain :loading="loading" @click="load">刷新状态</el-button>
+            <el-button type="primary" @click="openCreateTask">新增任务</el-button>
+          </div>
         </div>
 
         <div v-if="tasks.length" class="task-list">
           <section
             v-for="task in tasks"
-            :key="task.name"
+            :key="task.id"
             class="panel task-card"
             :class="`tone-${taskTone(task)}`"
           >
@@ -205,20 +285,21 @@ async function runNow(task) {
                 </span>
                 <div>
                   <div class="task-title-row">
-                    <h3>{{ task.label }}</h3>
+                    <h3>{{ task.name }}</h3>
                     <el-tag :type="task.enabled ? 'success' : 'info'" effect="light" round>
                       {{ task.enabled ? "已启用" : "已停用" }}
                     </el-tag>
+                    <el-tag type="info" effect="plain" round>{{ task.typeLabel }}</el-tag>
                   </div>
                   <p>{{ task.description }}</p>
                 </div>
               </div>
-              <span class="task-code mono">{{ task.name }}</span>
+              <span class="task-code mono">{{ task.id }}</span>
             </div>
 
             <div v-if="task.exists" class="panel-body task-body">
               <div class="task-time-block">
-                <span class="task-time">{{ forms[task.name]?.time || task.time || "—" }}</span>
+                <span class="task-time">{{ forms[task.id]?.time || task.time || "—" }}</span>
                 <span class="task-time-label">每日执行</span>
                 <span class="task-running" :class="{ on: task.enabled }">
                   {{ task.enabled ? "自动运行中" : "已暂停" }}
@@ -228,24 +309,32 @@ async function runNow(task) {
               <div class="task-main">
                 <div class="task-controls">
                   <el-time-select
-                    v-model="forms[task.name].time"
+                    v-model="forms[task.id].time"
                     class="task-time-select"
                     start="00:00"
                     end="23:30"
                     step="00:30"
                     placeholder="选择时间"
                   />
+                  <el-select
+                    v-if="task.type === 'daily'"
+                    v-model="forms[task.id].market"
+                    class="task-market-select"
+                  >
+                    <el-option label="场外" value="otc" />
+                    <el-option label="场内" value="exchange" />
+                  </el-select>
                   <el-switch
-                    v-model="forms[task.name].enabled"
+                    v-model="forms[task.id].enabled"
                     inline-prompt
                     active-text="开"
                     inactive-text="关"
                     @change="toggle(task)"
                   />
-                  <el-button type="primary" :loading="saving === task.name" @click="save(task)">
-                    保存时间
+                  <el-button type="primary" :loading="saving === task.id" @click="save(task)">
+                    保存
                   </el-button>
-                  <el-button plain :loading="running === task.name" @click="runNow(task)">立即运行</el-button>
+                  <el-button plain :loading="running === task.id" @click="runNow(task)">立即运行</el-button>
                 </div>
 
                 <div class="task-metrics">
@@ -275,21 +364,26 @@ async function runNow(task) {
                 :closable="false"
                 show-icon
                 title="计划任务未注册"
-                description="请先在系统中重新创建该任务，或联系我重新注册。"
+                description="请编辑并保存该任务，管理台会重新注册 Windows 计划任务。"
               />
+            </div>
+
+            <div class="task-footer">
+              <el-button link type="primary" @click="openEditTask(task)">编辑</el-button>
+              <el-button link type="danger" @click="removeTask(task)">删除任务</el-button>
             </div>
           </section>
         </div>
 
-        <el-empty v-else description="没有读取到计划任务" :image-size="90" />
+        <el-empty v-else description="还没有计划任务，点击新增任务" :image-size="90" />
       </div>
 
       <aside class="tasks-side">
         <section class="panel market-panel">
           <div class="panel-head">
             <div>
-              <h3>交易市场</h3>
-              <p>切换下一次 14:30 的候选池与规则</p>
+              <h3>默认市场</h3>
+              <p>新建日报任务默认使用，可被任务单独覆盖</p>
             </div>
             <el-tag :type="mode === 'otc' ? 'primary' : 'success'" effect="light" round>{{ modeLabel }}</el-tag>
           </div>
@@ -304,7 +398,7 @@ async function runNow(task) {
             </el-radio-group>
 
             <div class="market-rule">
-              <span class="market-rule-label">当前规则</span>
+              <span class="market-rule-label">当前默认</span>
               <strong>{{ mode === "otc" ? "场外 T+2" : "场内 T+1" }}</strong>
               <span class="market-rule-note">候选 {{ (watchlists[mode] || []).length }} 只</span>
             </div>
@@ -316,7 +410,7 @@ async function runNow(task) {
             </div>
 
             <p class="tasks-note">
-              当前使用{{ mode === "otc" ? "场外 T+2" : "场内 T+1" }}规则；切换只影响下一次买入候选，已持仓按自身市场规则卖出。
+              每个日报任务可以在卡片内单独选择场外 / 场内；这里只决定新建任务的默认值和手动运行时的回退市场。
             </p>
           </div>
         </section>
@@ -335,14 +429,14 @@ async function runNow(task) {
           <div class="help-item">
             <el-icon><AlarmClock /></el-icon>
             <div>
-              <strong>14:30 操作</strong>
+              <strong>日报任务</strong>
               <span>生成买入、卖出或不动操作，自动记账并推送报告。</span>
             </div>
           </div>
           <div class="help-item">
             <el-icon><TrendCharts /></el-icon>
             <div>
-              <strong>15:30 收盘</strong>
+              <strong>收盘任务</strong>
               <span>用收盘价和最新净值估算当日盈亏，并推送收盘摘要。</span>
             </div>
           </div>
@@ -363,6 +457,49 @@ async function runNow(task) {
         </div>
       </div>
     </section>
+
+    <el-dialog
+      v-model="taskDialogVisible"
+      :title="editingTaskId ? '编辑定时任务' : '新增定时任务'"
+      width="520px"
+    >
+      <el-form label-position="top">
+        <el-form-item label="任务名称">
+          <el-input v-model="taskForm.name" placeholder="如 14:30 场外操作" />
+        </el-form-item>
+        <el-form-item label="任务类型">
+          <el-select v-model="taskForm.type" style="width: 100%">
+            <el-option label="日报（生成操作并记账）" value="daily" />
+            <el-option label="收盘（估算当日盈亏）" value="close" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="执行时间">
+          <el-time-select
+            v-model="taskForm.time"
+            start="00:00"
+            end="23:30"
+            step="00:30"
+            placeholder="选择时间"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item v-if="taskForm.type === 'daily'" label="交易市场">
+          <el-radio-group v-model="taskForm.market">
+            <el-radio value="otc">场外</el-radio>
+            <el-radio value="exchange">场内</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="taskForm.enabled" active-text="启用" inactive-text="停用" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="taskDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="taskSaving" @click="saveTaskForm">
+          {{ editingTaskId ? "保存修改" : "创建任务" }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -524,6 +661,13 @@ async function runNow(task) {
   font-size: 11px;
 }
 
+.task-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .task-list {
   display: flex;
   flex-direction: column;
@@ -656,6 +800,16 @@ async function runNow(task) {
 
 .task-time-select {
   width: 132px;
+}
+
+.task-market-select {
+  width: 100px;
+}
+
+.task-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 20px 16px;
 }
 
 .task-metrics {
@@ -865,19 +1019,33 @@ async function runNow(task) {
     width: 100%;
   }
 
+  .task-list-actions {
+    width: 100%;
+  }
+
+  .task-list-actions .el-button {
+    flex: 1;
+  }
+
   .task-controls {
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
   }
 
-  .task-time-select {
-    grid-column: 1 / -1;
+  .task-time-select,
+  .task-market-select {
+    flex: 1 1 100%;
     width: 100%;
   }
 
+  .task-controls .el-switch {
+    flex: 0 0 auto;
+  }
+
   .task-controls .el-button {
-    width: 100%;
+    flex: 1 1 calc(50% - 5px);
+    width: auto;
   }
 
   .help-grid {

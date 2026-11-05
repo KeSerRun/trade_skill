@@ -121,7 +121,9 @@ async function main() {
   if (!account.ok) errors.push(`account: ${account.error}`);
 
   const held = account.ok ? (account.holdings ?? []).map((h) => h.code) : [];
-  const marketMode = loadMarketMode();
+  const marketMode = ["otc", "exchange"].includes(process.env.FUND_TRADE_MARKET)
+    ? process.env.FUND_TRADE_MARKET
+    : loadMarketMode();
   const dbWatchlist = loadWatchlist(marketMode);
   const configured = dbWatchlist.map(normalizeWatchlist);
   const byCode = new Map();

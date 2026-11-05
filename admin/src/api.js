@@ -33,6 +33,8 @@ export const api = {
   trades: (query = "") => request(`/trades${query}`),
   saveRules: (body) => request("/rules", { method: "PUT", body: JSON.stringify(body) }),
   tasks: () => request("/tasks"),
+  createTask: (body) => request("/tasks", { method: "POST", body: JSON.stringify(body) }),
+  deleteTask: (id) => request(`/tasks/${encodeURIComponent(id)}`, { method: "DELETE" }),
   watchlist: () => request("/watchlist"),
   saveWatchlist: (body) => request("/watchlist", { method: "POST", body: JSON.stringify(body) }),
   deleteWatchlist: (market, code) => request(`/watchlist/${encodeURIComponent(market)}/${encodeURIComponent(code)}`, { method: "DELETE" }),

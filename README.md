@@ -87,10 +87,12 @@ npm start        # http://127.0.0.1:8787
 
 Windows 计划任务：
 
-- `FundDailyReport`：每天 14:30，生成操作并自动记账
-- `FundDailyClose`：每天 15:30，生成收盘盈亏
+- `FundDailyReport`：默认每天 14:30，生成操作并自动记账
+- `FundDailyClose`：默认每天 15:30，生成收盘盈亏
 
-两个任务只在开机且已登录时运行；睡眠会尝试唤醒，关机不会补跑。
+管理台支持新增、编辑、删除定时任务；日报任务可以单独选择场外 / 场内，任务配置保存在 `scheduled_tasks`，Windows 计划任务由管理台同步注册和删除。
+
+任务只在开机且已登录时运行；睡眠会尝试唤醒，关机不会补跑。
 
 手动重跑当天任务（复用已抓新闻、不重复推送）：
 
@@ -116,6 +118,7 @@ powershell -ExecutionPolicy Bypass -File .commandcode\fund-report\run-daily.ps1 
 | `news_verdicts` | 雷点/热点结论与证据 |
 | `watchlist` | 场外 / 场内候选基金、搜索词、启用和排序 |
 | `products` | 全市场基金 / ETF 产品主表，按市场和代码唯一 |
+| `scheduled_tasks` | 定时任务注册表：名称、类型、时间、市场、启用状态 |
 | `meta` | 当前市场模式 `market_mode` 等键值 |
 | `app_settings` | 自动记账、搜索词数、轮数、模型等运行参数 |
 | `advice_settings` | 买入/卖出立场、阈值、仓位、止损止盈 |

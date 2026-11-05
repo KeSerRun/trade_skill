@@ -5,11 +5,19 @@ param(
   [switch]$SkipAgent,
   [switch]$ReuseNews,
   [int]$Limit = 0,
-  [string]$Model = ""
+  [string]$Model = "",
+  [string]$Market = ""
 )
 
 $ErrorActionPreference = "Stop"
 $env:NODE_NO_WARNINGS = "1"
+if ($Market) {
+  if ($Market -notin @("otc", "exchange")) {
+    Write-Error "Market must be otc or exchange"
+    exit 1
+  }
+  $env:FUND_TRADE_MARKET = $Market
+}
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
