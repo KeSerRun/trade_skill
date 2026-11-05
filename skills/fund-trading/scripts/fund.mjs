@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureUtf8Console, fail, isJsonMode, numberFlag, parseArgs } from "./lib/cli.mjs";
 import { table, money, pct, signed } from "./lib/format.mjs";
 import { loadFundList, navHistory, quoteFund, searchFunds } from "./lib/data.mjs";
 import { probe } from "./lib/http.mjs";
-import { PROJECT_ROOT } from "./lib/paths.mjs";
-import { saveScheduledTask } from "./lib/sqlite.mjs";
+import { DB_FILE, PROJECT_ROOT, STATE_DIR } from "./lib/paths.mjs";
+import { hasAccount, saveScheduledTask } from "./lib/sqlite.mjs";
 
 ensureUtf8Console();
 
@@ -18,6 +19,7 @@ const USAGE = `基金行情与数据工具
   node fund.mjs nav <基金代码> [--pages N] [--page-size N] [--json]
   node fund.mjs search <关键词> [--limit N] [--json]
   node fund.mjs doctor [--json]
+  node fund.mjs welcome [--mark] [--json]
   node fund.mjs setup [--daily 14:30] [--close 15:30] [--market otc|exchange] [--agent-adapter <ps1>] [--dry-run] [--uninstall] [--json]
 
 说明:
@@ -25,6 +27,7 @@ const USAGE = `基金行情与数据工具
   nav    获取历史净值序列
   search 按代码/名称/拼音检索基金
   doctor 检测数据源连通性
+  welcome 首次加载时介绍功能与初始化状态
   setup  注册 Windows 每日定时任务（需要项目中的 runner）`;
 
 function print(data, renderHuman, flags) {
@@ -133,6 +136,73 @@ async function run() {
           { label: "耗时/条数", value: (row) => row.latencyMs ?? "-" },
           { label: "错误", value: (row) => row.error ?? "" },
         ]),
+        flags,
+      );
+      return;
+    }
+
+    case "welcome": {
+      const marker = path.join(STATE_DIR, ".welcome");
+      const firstTime = !fs.existsSync(marker);
+      let initialized = false;
+      if (fs.existsSync(DB_FILE)) {
+        try {
+          initialized = hasAccount();
+        } catch {
+          initialized = false;
+        }
+      }
+
+      const features = [
+        "查基金/ETF 行情、净值、历史业绩",
+        "抓基金档案、重仓股、申赎状态",
+        "对新闻公告做雷点/热点分类打分",
+        "生成模拟买卖指令，跟踪成交并同步纸面账户",
+        "仓位上限、现金底线、止损止盈、回撤等风控",
+        "Windows 14:30 自动操作、15:30 收盘盈亏",
+      ];
+      const nextSteps = initialized
+        ? [
+            "看持仓与风险：node skills/fund-trading/scripts/paper.mjs status --json",
+            "检查数据源：node skills/fund-trading/scripts/fund.mjs doctor --json",
+            "注册定时任务：node skills/fund-trading/scripts/fund.mjs setup",
+          ]
+        : [
+            "初始化模拟账户：node skills/fund-trading/scripts/paper.mjs init --cash 10000 --json",
+            "检查数据源：node skills/fund-trading/scripts/fund.mjs doctor --json",
+            "注册定时任务：node skills/fund-trading/scripts/fund.mjs setup",
+          ];
+      const data = {
+        ok: true,
+        firstTime,
+        initialized,
+        stateDir: STATE_DIR,
+        dbFile: DB_FILE,
+        features,
+        nextSteps,
+        disclaimer: "全部为模拟盘，不连接真实账户，不自动下单，不构成投资建议。",
+      };
+
+      if (flags.mark && firstTime) {
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+        fs.writeFileSync(marker, new Date().toISOString(), "utf8");
+      }
+      print(
+        data,
+        (d) =>
+          [
+            "基金交易助手（模拟盘）",
+            "",
+            "可以做：",
+            ...d.features.map((item) => `- ${item}`),
+            "",
+            d.initialized ? "模拟账户已初始化。" : "还没有初始化模拟账户。",
+            "",
+            "下一步：",
+            ...d.nextSteps.map((item) => `- ${item}`),
+            "",
+            d.disclaimer,
+          ].join("\n"),
         flags,
       );
       return;

@@ -16,6 +16,7 @@
 - 通用 Agent Skills 宿主：把 `skills/fund-trading/` 复制到宿主的 skills 目录。
 - Command Code：直接把 `skills/fund-trading` 作为技能目录加载。
 - 管理后台是独立可选项，不影响核心技能使用。
+- 首次加载时技能会运行 `fund.mjs welcome`，介绍功能、当前账户状态和下一步；安装器本身不会执行脚本。
 
 ## 目录结构
 
