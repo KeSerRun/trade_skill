@@ -46,29 +46,29 @@ async function refresh() {
           <el-icon><Files /></el-icon>
           <span>产品库</span>
         </el-menu-item>
+        <el-menu-item index="/watchlist">
+          <el-icon><Collection /></el-icon>
+          <span>关注列表</span>
+        </el-menu-item>
         <el-menu-item index="/positions">
           <el-icon><Wallet /></el-icon>
           <span>持仓管理</span>
+        </el-menu-item>
+        <el-menu-item index="/trades">
+          <el-icon><Tickets /></el-icon>
+          <span>交易记录</span>
         </el-menu-item>
         <el-menu-item index="/rules">
           <el-icon><SetUp /></el-icon>
           <span>交易限制</span>
         </el-menu-item>
-        <el-menu-item index="/watchlist">
-          <el-icon><Collection /></el-icon>
-          <span>关注列表</span>
-        </el-menu-item>
-        <el-menu-item index="/settings">
-          <el-icon><Setting /></el-icon>
-          <span>系统设置</span>
-        </el-menu-item>
         <el-menu-item index="/tasks">
           <el-icon><Timer /></el-icon>
           <span>定时任务</span>
         </el-menu-item>
-        <el-menu-item index="/trades">
-          <el-icon><Tickets /></el-icon>
-          <span>交易记录</span>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>系统设置</span>
         </el-menu-item>
       </el-menu>
 
