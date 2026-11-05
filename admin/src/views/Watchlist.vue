@@ -121,7 +121,6 @@ function onProductChange(key) {
   form.market = product.market;
   form.code = product.code;
   form.name = product.name;
-  form.sector = product.sector || "";
 }
 
 function onMarketChange() {

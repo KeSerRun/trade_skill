@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadAppSettings, loadMarketMode, loadProductBenchmark, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
+import { loadAppSettings, loadMarketMode, loadWatchlist } from "../skills/fund-trading/scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
@@ -142,12 +142,8 @@ async function main() {
     if (!history.ok) errors.push(`${item.code}: ${history.error}`);
 
     const officialToday = closeMode && rows[0]?.date === date;
-    const benchmarkCode = item.benchmark || loadProductBenchmark(item.code);
-    let benchmark = null;
     let estimatedNav = null;
     let estimatedChangePct = null;
-    let estimate = false;
-    let estimateNote = null;
     if (closeMode) {
       if (quote.ok && quote.market === "exchange") {
         estimatedNav = quote.price;
@@ -155,29 +151,6 @@ async function main() {
       } else if (officialToday) {
         estimatedNav = quote.ok ? quote.nav ?? rows[0].nav : rows[0].nav;
         estimatedChangePct = rows[0].changePct ?? null;
-      } else if (benchmarkCode) {
-        benchmark = benchmarkCode;
-        let bench = null;
-        try {
-          bench = await fetchExchangeQuote(benchmarkCode);
-        } catch {
-          bench = null;
-        }
-        if (!bench) {
-          const fallback = call("fund.mjs", ["quote", benchmarkCode, "--exchange"]);
-          if (fallback.ok && fallback.market === "exchange") bench = fallback;
-        }
-        const benchDate = bench?.time?.slice(0, 10) ?? null;
-        if (bench && bench.changePct !== null && bench.changePct !== undefined && benchDate === date) {
-          estimatedChangePct = bench.changePct;
-          const base = quote.ok ? (quote.market === "exchange" ? quote.price : quote.nav) : rows[0]?.nav ?? null;
-          if (base) {
-            estimatedNav = base * (1 + estimatedChangePct);
-            estimate = true;
-          }
-        } else {
-          estimateNote = "对应 ETF 今日收盘行情未更新";
-        }
       }
     }
 
@@ -191,11 +164,8 @@ async function main() {
       changePct: quote.ok ? quote.changePct ?? null : null,
       priceDate: quote.ok ? quote.date ?? quote.time?.slice(0, 10) ?? null : null,
       lastNavDate: rows[0]?.date ?? null,
-      benchmark,
       estimatedNav,
       estimatedChangePct,
-      estimate,
-      estimateNote,
       d5: ret(rows, 5),
       d20: ret(rows, 20),
       d60: ret(rows, 60),
@@ -249,10 +219,8 @@ async function main() {
         source = "收盘价";
       } else if (fund?.estimatedNav) {
         nav = fund.estimatedNav;
-        estimated = fund.estimate === true;
-        source = fund.estimate ? `按 ${fund.benchmark} 收盘估算` : "官方净值";
-      } else if (fund?.estimateNote) {
-        source = fund.estimateNote;
+        estimated = false;
+        source = "官方净值";
       }
       if (!isExchange && isNewToday) {
         nav = prevNav;

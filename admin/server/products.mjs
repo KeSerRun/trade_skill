@@ -1,4 +1,4 @@
-import { backfillProductMetadata, tx } from "./db.mjs";
+import { tx } from "./db.mjs";
 
 const FUND_LIST_URL = "https://fund.eastmoney.com/js/fundcode_search.js";
 
@@ -36,8 +36,8 @@ export async function syncProducts(db) {
 
   const updatedAt = new Date().toISOString();
   const upsert = db.prepare(
-    `INSERT INTO products (market, code, name, category, type, benchmark, sector, status, updated_at)
-     VALUES (?, ?, ?, ?, ?, NULL, NULL, 'active', ?)
+    `INSERT INTO products (market, code, name, category, type, status, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'active', ?)
      ON CONFLICT(market, code) DO UPDATE SET
        name = excluded.name, category = excluded.category, type = excluded.type,
        status = 'active', updated_at = excluded.updated_at`,
@@ -53,7 +53,6 @@ export async function syncProducts(db) {
       upsert.run(market, code, name, category ?? null, typeFor(market, name), updatedAt);
       changed += 1;
     }
-    backfillProductMetadata(db);
   });
 
   const counts = { all: 0, index: 0, exchange: 0, otc: 0 };

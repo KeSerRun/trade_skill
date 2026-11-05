@@ -123,8 +123,6 @@ function migrate(db) {
       name TEXT NOT NULL,
       category TEXT,
       type TEXT NOT NULL,
-      benchmark TEXT,
-      sector TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
@@ -215,15 +213,15 @@ function seed(db) {
   }
 
   const insertProduct = db.prepare(
-    `INSERT OR IGNORE INTO products (market, code, name, category, type, benchmark, sector, status, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+    `INSERT OR IGNORE INTO products (market, code, name, category, type, status, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'active', ?)`,
   );
   for (const item of [
     { code: "000001", name: "上证指数", category: "指数", type: "index" },
     { code: "399001", name: "深证成指", category: "指数", type: "index" },
     { code: "399006", name: "创业板指", category: "指数", type: "index" },
   ]) {
-    insertProduct.run("index", item.code, item.name, item.category, item.type, null, null, now());
+    insertProduct.run("index", item.code, item.name, item.category, item.type, now());
   }
 }
 
@@ -233,41 +231,16 @@ export function openDb(dbPath) {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
   migrate(db);
+  dropLegacyProductColumns(db);
   seed(db);
-  backfillProductMetadata(db);
   return db;
 }
 
-export function backfillProductMetadata(db) {
-  db.exec(`
-    UPDATE products SET sector = (
-      SELECT w.sector FROM watchlist w
-      WHERE w.market = products.market AND w.code = products.code
-        AND w.sector IS NOT NULL AND w.sector <> '' LIMIT 1
-    ) WHERE sector IS NULL OR sector = '';
-    UPDATE products SET benchmark = (
-      SELECT w.benchmark FROM watchlist w
-      WHERE w.market = products.market AND w.code = products.code
-        AND w.benchmark IS NOT NULL AND w.benchmark <> '' LIMIT 1
-    ) WHERE benchmark IS NULL OR benchmark = '';
-    UPDATE watchlist SET benchmark = NULL
-    WHERE benchmark IS NOT NULL
-      AND EXISTS (
-        SELECT 1 FROM products p
-        WHERE p.market = watchlist.market AND p.code = watchlist.code
-          AND p.benchmark IS NOT NULL AND p.benchmark <> ''
-      );
-  `);
-}
-
-export function updateProduct(db, { market, code, sector, benchmark }) {
-  db.prepare("UPDATE products SET sector = ?, benchmark = ?, updated_at = ? WHERE market = ? AND code = ?").run(
-    sector || null,
-    benchmark || null,
-    now(),
-    market,
-    code,
-  );
+function dropLegacyProductColumns(db) {
+  const columns = new Set(db.prepare("PRAGMA table_info(products)").all().map((row) => row.name));
+  for (const name of ["sector", "benchmark"]) {
+    if (columns.has(name)) db.exec(`ALTER TABLE products DROP COLUMN ${name}`);
+  }
 }
 
 export function tx(db, fn) {
@@ -407,8 +380,6 @@ export function listProducts(db, { search = "", market = "", watched = false, pa
       name: row.name,
       category: row.category,
       type: row.type,
-      benchmark: row.benchmark,
-      sector: row.sector,
       status: row.status,
       watched: row.watched === 1,
     })),

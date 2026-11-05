@@ -96,8 +96,6 @@ function ensureSchema(handle) {
       name TEXT NOT NULL,
       category TEXT,
       type TEXT NOT NULL,
-      benchmark TEXT,
-      sector TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       updated_at TEXT NOT NULL,
       PRIMARY KEY (market, code)
@@ -344,13 +342,6 @@ export function loadWatchlist(market) {
     enabled: row.enabled === 1,
     sortOrder: row.sort_order,
   }));
-}
-
-export function loadProductBenchmark(code) {
-  const row = getDb()
-    .prepare("SELECT benchmark FROM products WHERE market = 'otc' AND code = ?")
-    .get(code);
-  return row?.benchmark ?? null;
 }
 
 export function loadAppSettings() {

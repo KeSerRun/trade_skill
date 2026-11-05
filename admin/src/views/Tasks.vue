@@ -343,7 +343,7 @@ async function runNow(task) {
             <el-icon><TrendCharts /></el-icon>
             <div>
               <strong>15:30 收盘</strong>
-              <span>用对标 ETF 收盘价估算当日盈亏，并推送收盘摘要。</span>
+              <span>用收盘价和最新净值估算当日盈亏，并推送收盘摘要。</span>
             </div>
           </div>
           <div class="help-item">

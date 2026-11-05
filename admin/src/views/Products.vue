@@ -15,9 +15,6 @@ const watchedOnly = ref(false);
 const quotes = ref({});
 const navs = ref({});
 const counts = reactive({ all: 0, index: 0, exchange: 0, otc: 0 });
-const editVisible = ref(false);
-const editSaving = ref(false);
-const editForm = reactive({ market: "", code: "", name: "", sector: "", benchmark: "" });
 
 let quoteTimer = null;
 let navTimer = null;
@@ -177,7 +174,6 @@ async function toggleWatch(row) {
         market: row.market,
         code: row.code,
         name: row.name,
-        sector: row.sector ?? null,
         queries: [],
         enabled: true,
         sortOrder: 0,
@@ -187,34 +183,6 @@ async function toggleWatch(row) {
     }
   } catch (error) {
     ElMessage.error(error.message);
-  }
-}
-
-function openEdit(row) {
-  Object.assign(editForm, {
-    market: row.market,
-    code: row.code,
-    name: row.name,
-    sector: row.sector ?? "",
-    benchmark: row.benchmark ?? "",
-  });
-  editVisible.value = true;
-}
-
-async function saveProduct() {
-  editSaving.value = true;
-  try {
-    await api.updateProduct(editForm.market, editForm.code, {
-      sector: editForm.sector.trim(),
-      benchmark: editForm.benchmark.trim(),
-    });
-    editVisible.value = false;
-    await load();
-    ElMessage.success("产品信息已更新");
-  } catch (error) {
-    ElMessage.error(error.message);
-  } finally {
-    editSaving.value = false;
   }
 }
 
@@ -291,12 +259,6 @@ onUnmounted(() => {
             <el-table-column label="市场" width="70">
               <template #default="{ row }">{{ marketLabels[row.market] ?? row.market }}</template>
             </el-table-column>
-            <el-table-column label="板块" width="100" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.sector || "—" }}</template>
-            </el-table-column>
-            <el-table-column label="对标 ETF" width="90">
-              <template #default="{ row }">{{ row.benchmark || "—" }}</template>
-            </el-table-column>
             <el-table-column label="最新价 / 净值" width="110">
               <template #default="{ row }">
                 <template v-if="row.market === 'otc'">
@@ -335,9 +297,8 @@ onUnmounted(() => {
                 <span v-else class="muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="110" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
                 <el-button
                   v-if="row.market !== 'index'"
                   link
@@ -346,6 +307,7 @@ onUnmounted(() => {
                 >
                   {{ row.watched ? "取消关注" : "加入关注" }}
                 </el-button>
+                <span v-else class="muted">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -364,24 +326,6 @@ onUnmounted(() => {
         </template>
       </div>
     </section>
-
-    <el-dialog v-model="editVisible" title="编辑产品信息" width="520px">
-      <el-form label-position="top">
-        <el-form-item label="产品">
-          <el-input :model-value="`${editForm.code} ${editForm.name}`" disabled />
-        </el-form-item>
-        <el-form-item label="板块">
-          <el-input v-model="editForm.sector" placeholder="如 银行/红利" />
-        </el-form-item>
-        <el-form-item label="对标 ETF">
-          <el-input v-model="editForm.benchmark" placeholder="场外估值用，需在产品库，如 512800" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editSaving" @click="saveProduct">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 

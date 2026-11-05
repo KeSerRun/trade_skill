@@ -23,7 +23,6 @@ import {
   setNotifySettings,
   setRules,
   stateSummary,
-  updateProduct,
   upsertPosition,
   upsertWatchlist,
 } from "./db.mjs";
@@ -394,26 +393,6 @@ const server = http.createServer(async (req, res) => {
     if (method === "POST" && pathname === "/api/products/sync") {
       const data = await syncProducts(db);
       sendJson(res, 200, { ok: true, ...data });
-      return;
-    }
-
-    if (method === "PATCH" && pathname.startsWith("/api/products/")) {
-      const parts = pathname.split("/").filter(Boolean);
-      const market = decodeURIComponent(parts[2] ?? "");
-      const code = decodeURIComponent(parts[3] ?? "");
-      if (!["index", "exchange", "otc"].includes(market)) throw new HttpError(400, "产品市场不合法");
-      if (!code) throw new HttpError(400, "缺少产品代码");
-      const body = await readBody(req);
-      const sector = body.sector ? String(body.sector).trim().slice(0, 50) : "";
-      const benchmark = body.benchmark ? String(body.benchmark).trim() : "";
-      if (benchmark) {
-        const benchmarkKey = `exchange:${benchmark}`;
-        if (!getProductsByKeys(db, [benchmarkKey]).get(benchmarkKey)) {
-          throw new HttpError(400, "对标 ETF 不在产品库中");
-        }
-      }
-      updateProduct(db, { market, code, sector, benchmark });
-      sendJson(res, 200, { ok: true });
       return;
     }
 
