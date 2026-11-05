@@ -268,8 +268,22 @@ export function setMarketMode(db, mode) {
 
 export function listWatchlist(db, market = null) {
   const rows = market
-    ? db.prepare("SELECT * FROM watchlist WHERE market = ? ORDER BY sort_order, code").all(market)
-    : db.prepare("SELECT * FROM watchlist ORDER BY market, sort_order, code").all();
+    ? db
+        .prepare(
+          `SELECT w.*, p.category AS product_category, p.type AS product_type
+           FROM watchlist w
+           LEFT JOIN products p ON p.market = w.market AND p.code = w.code
+           WHERE w.market = ? ORDER BY w.sort_order, w.code`,
+        )
+        .all(market)
+    : db
+        .prepare(
+          `SELECT w.*, p.category AS product_category, p.type AS product_type
+           FROM watchlist w
+           LEFT JOIN products p ON p.market = w.market AND p.code = w.code
+           ORDER BY w.market, w.sort_order, w.code`,
+        )
+        .all();
   return rows.map((row) => ({
     code: row.code,
     market: row.market,
@@ -279,6 +293,8 @@ export function listWatchlist(db, market = null) {
     queries: JSON.parse(row.queries || "[]"),
     enabled: row.enabled === 1,
     sortOrder: row.sort_order,
+    category: row.product_category ?? null,
+    productType: row.product_type ?? null,
     updatedAt: row.updated_at,
   }));
 }

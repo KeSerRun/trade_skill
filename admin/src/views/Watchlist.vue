@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "../api";
 
@@ -9,9 +9,13 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const editing = ref(false);
 const filter = ref("");
+const productOptions = ref([]);
+const productLoading = ref(false);
+let productTimer = null;
 
 const form = reactive({
   market: "otc",
+  productKey: "",
   code: "",
   name: "",
   benchmark: "",
@@ -41,9 +45,14 @@ async function load() {
 
 onMounted(load);
 
+onUnmounted(() => {
+  if (productTimer) clearTimeout(productTimer);
+});
+
 function openCreate(market = "otc") {
   Object.assign(form, {
     market,
+    productKey: "",
     code: "",
     name: "",
     benchmark: "",
@@ -52,13 +61,16 @@ function openCreate(market = "otc") {
     enabled: true,
     sortOrder: 0,
   });
+  productOptions.value = [];
   editing.value = false;
   dialogVisible.value = true;
+  loadProducts();
 }
 
 function openEdit(row) {
   Object.assign(form, {
     market: row.market,
+    productKey: `${row.market}:${row.code}`,
     code: row.code,
     name: row.name ?? "",
     benchmark: row.benchmark ?? "",
@@ -67,13 +79,65 @@ function openEdit(row) {
     enabled: row.enabled,
     sortOrder: row.sortOrder ?? 0,
   });
+  productOptions.value = [
+    {
+      key: `${row.market}:${row.code}`,
+      code: row.code,
+      name: row.name,
+      market: row.market,
+      category: row.category,
+      type: row.productType,
+    },
+  ];
   editing.value = true;
   dialogVisible.value = true;
 }
 
+function optionLabel(product) {
+  return `${product.code} ${product.name}${product.category ? ` · ${product.category}` : ""}`;
+}
+
+async function loadProducts(query = "") {
+  productLoading.value = true;
+  try {
+    const data = await api.products({
+      search: query,
+      market: form.market,
+      pageSize: 20,
+    });
+    productOptions.value = data.items;
+  } catch (error) {
+    if (query) ElMessage.error(error.message);
+  } finally {
+    productLoading.value = false;
+  }
+}
+
+function searchProducts(query) {
+  if (productTimer) clearTimeout(productTimer);
+  productTimer = setTimeout(() => loadProducts(query), 250);
+}
+
+function onProductChange(key) {
+  const product = productOptions.value.find((item) => item.key === key);
+  if (!product) return;
+  form.market = product.market;
+  form.code = product.code;
+  form.name = product.name;
+}
+
+function onMarketChange() {
+  if (editing.value) return;
+  form.productKey = "";
+  form.code = "";
+  form.name = "";
+  productOptions.value = [];
+  loadProducts();
+}
+
 async function save() {
   if (!form.code.trim()) {
-    ElMessage.warning("请填写基金代码");
+    ElMessage.warning("请从产品库选择产品");
     return;
   }
   saving.value = true;
@@ -143,8 +207,8 @@ async function remove(row) {
           <el-option label="场外" value="otc" />
           <el-option label="场内" value="exchange" />
         </el-select>
-        <el-button @click="openCreate('otc')">新增场外</el-button>
-        <el-button type="primary" @click="openCreate('exchange')">新增场内</el-button>
+        <el-button @click="$router.push('/products')">产品库</el-button>
+        <el-button type="primary" @click="openCreate()">从产品库添加</el-button>
       </div>
     </div>
 
@@ -167,6 +231,7 @@ async function remove(row) {
           </el-table-column>
           <el-table-column prop="code" label="代码" width="90" />
           <el-table-column prop="name" label="名称" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="category" label="分类" width="130" show-overflow-tooltip />
           <el-table-column prop="sector" label="板块" width="110" />
           <el-table-column prop="benchmark" label="对标 ETF" width="100" />
           <el-table-column label="搜索词" width="80" align="center">
@@ -196,21 +261,39 @@ async function remove(row) {
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="市场">
-              <el-radio-group v-model="form.market" :disabled="editing">
+              <el-radio-group v-model="form.market" :disabled="editing" @change="onMarketChange">
                 <el-radio value="otc">场外</el-radio>
                 <el-radio value="exchange">场内</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="基金代码">
-              <el-input v-model="form.code" :disabled="editing" placeholder="如 006697 / 512800" />
+            <el-form-item label="产品（来自产品库）">
+              <el-select
+                v-if="!editing"
+                v-model="form.productKey"
+                filterable
+                remote
+                :remote-method="searchProducts"
+                :loading="productLoading"
+                placeholder="搜索代码或名称"
+                style="width: 100%"
+                @change="onProductChange"
+              >
+                <el-option
+                  v-for="product in productOptions"
+                  :key="product.key"
+                  :label="optionLabel(product)"
+                  :value="product.key"
+                />
+              </el-select>
+              <el-input v-else :model-value="`${form.code} ${form.name}`" disabled />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="名称">
-              <el-input v-model="form.name" placeholder="如 华宝银行ETF联接C" />
-            </el-form-item>
+          <el-col :span="24">
+            <div class="rule-tip" style="margin: 0 0 12px">
+              关注项直接引用产品库，代码和名称不可手改；换产品请删除后重新添加。
+            </div>
           </el-col>
           <el-col :span="12">
             <el-form-item label="板块">
@@ -219,7 +302,7 @@ async function remove(row) {
           </el-col>
           <el-col :span="12">
             <el-form-item label="对标 ETF">
-              <el-input v-model="form.benchmark" placeholder="场外估值用，如 512800" />
+              <el-input v-model="form.benchmark" placeholder="场外估值用，需在产品库，如 512800" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

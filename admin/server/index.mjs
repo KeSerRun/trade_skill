@@ -9,6 +9,7 @@ import {
   getAppSettings,
   getMarketMode,
   getNotifySettings,
+  getProductsByKeys,
   getRules,
   listPositions,
   listProducts,
@@ -518,11 +519,21 @@ const server = http.createServer(async (req, res) => {
       if (market !== "otc" && market !== "exchange") throw new HttpError(400, "market 只能是 otc 或 exchange");
       const code = String(body.code ?? "").trim();
       if (!/^[0-9A-Za-z.]{4,12}$/.test(code)) throw new HttpError(400, "基金代码格式不正确");
+      const productKey = `${market}:${code}`;
+      const product = getProductsByKeys(db, [productKey]).get(productKey);
+      if (!product) throw new HttpError(400, "请先从产品库选择产品");
+      const benchmark = body.benchmark ? String(body.benchmark).trim() : "";
+      if (benchmark) {
+        const benchmarkKey = `exchange:${benchmark}`;
+        if (!getProductsByKeys(db, [benchmarkKey]).get(benchmarkKey)) {
+          throw new HttpError(400, "对标 ETF 不在产品库中");
+        }
+      }
       upsertWatchlist(db, {
         market,
         code,
-        name: body.name ? String(body.name).trim() : null,
-        benchmark: body.benchmark ? String(body.benchmark).trim() : null,
+        name: product.name,
+        benchmark: benchmark || null,
         sector: body.sector ? String(body.sector).trim() : null,
         queries: Array.isArray(body.queries)
           ? body.queries.map(normalizeQueryText).filter(Boolean)
