@@ -542,7 +542,6 @@ const server = http.createServer(async (req, res) => {
         market,
         code,
         name: product.name,
-        benchmark: null,
         sector: body.sector ? String(body.sector).trim() : null,
         queries: Array.isArray(body.queries)
           ? body.queries.map(normalizeQueryText).filter(Boolean)

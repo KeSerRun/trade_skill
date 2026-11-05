@@ -109,7 +109,6 @@ function migrate(db) {
       code TEXT NOT NULL,
       market TEXT NOT NULL,
       name TEXT,
-      benchmark TEXT,
       sector TEXT,
       queries TEXT NOT NULL DEFAULT '[]',
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -251,8 +250,14 @@ export function openDb(dbPath) {
   db.exec("PRAGMA foreign_keys = ON");
   migrate(db);
   dropLegacyProductColumns(db);
+  dropLegacyWatchlistColumn(db);
   seed(db);
   return db;
+}
+
+function dropLegacyWatchlistColumn(db) {
+  const columns = new Set(db.prepare("PRAGMA table_info(watchlist)").all().map((row) => row.name));
+  if (columns.has("benchmark")) db.exec("ALTER TABLE watchlist DROP COLUMN benchmark");
 }
 
 function dropLegacyProductColumns(db) {
@@ -272,23 +277,6 @@ export function tx(db, fn) {
     db.exec("ROLLBACK");
     throw error;
   }
-}
-
-export function getMeta(db, key) {
-  return db.prepare("SELECT value FROM meta WHERE key = ?").get(key)?.value ?? null;
-}
-
-export function setMeta(db, key, value) {
-  db.prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
-}
-
-export function getMarketMode(db) {
-  return getMeta(db, "market_mode") === "exchange" ? "exchange" : "otc";
-}
-
-export function setMarketMode(db, mode) {
-  if (mode !== "otc" && mode !== "exchange") throw new Error("mode 只能是 otc 或 exchange");
-  setMeta(db, "market_mode", mode);
 }
 
 export function listWatchlist(db, market = null) {
@@ -313,7 +301,6 @@ export function listWatchlist(db, market = null) {
     code: row.code,
     market: row.market,
     name: row.name,
-    benchmark: row.benchmark,
     sector: row.sector,
     queries: JSON.parse(row.queries || "[]"),
     enabled: row.enabled === 1,
@@ -331,17 +318,16 @@ export function upsertWatchlist(db, item) {
   if (!code) throw new Error("缺少基金代码");
   const queries = Array.isArray(item.queries) ? item.queries.map(String) : [];
   db.prepare(
-    `INSERT INTO watchlist (code, market, name, benchmark, sector, queries, enabled, sort_order, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO watchlist (code, market, name, sector, queries, enabled, sort_order, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(market, code) DO UPDATE SET
-       name = excluded.name, benchmark = excluded.benchmark, sector = excluded.sector,
+       name = excluded.name, sector = excluded.sector,
        queries = excluded.queries, enabled = excluded.enabled, sort_order = excluded.sort_order,
        updated_at = excluded.updated_at`,
   ).run(
     code,
     market,
     item.name ?? null,
-    item.benchmark ?? null,
     item.sector ?? null,
     JSON.stringify(queries),
     item.enabled === false ? 0 : 1,

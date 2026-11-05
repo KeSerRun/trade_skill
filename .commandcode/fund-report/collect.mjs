@@ -214,19 +214,16 @@ async function main() {
           : fund?.prevClose ?? holding.lastNav ?? holding.avgCost ?? 0
         : holding.lastNav ?? holding.avgCost ?? 0;
       let nav = prevNav;
-      let estimated = false;
       let source = "按最近净值";
       if (isExchange) {
         nav = fund?.price ?? holding.lastNav ?? prevNav;
         source = "收盘价";
       } else if (fund?.estimatedNav) {
         nav = fund.estimatedNav;
-        estimated = false;
         source = "官方净值";
       }
       if (!isExchange && isNewToday) {
         nav = prevNav;
-        estimated = false;
         source = "今日新买入，待 15:00 净值确认，当日盈亏暂不计入";
       }
       const value = holding.shares * nav;
@@ -248,7 +245,6 @@ async function main() {
         pnl: round(value - holding.cost, 2),
         pnlPct: holding.cost > 0 ? (value - holding.cost) / holding.cost : 0,
         dayPnl: round(dayPnl, 2),
-        estimated,
         pending: !isExchange && isNewToday,
         source,
       };
@@ -263,7 +259,6 @@ async function main() {
       positionValue: round(positionEstimate, 2),
       dayPnl: round(dayPnl, 2),
       dayPnlPct: prevEquity > 0 ? dayPnl / prevEquity : 0,
-      estimatedAny: closeHoldings.some((item) => item.estimated),
       pendingAny: closeHoldings.some((item) => item.pending),
       holdings: closeHoldings,
     };

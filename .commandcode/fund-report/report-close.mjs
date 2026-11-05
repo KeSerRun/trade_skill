@@ -19,7 +19,7 @@ function main() {
   const close = collect.close;
   if (!close) throw new Error("缺少 close 数据，请用 collect.mjs --close 生成");
 
-  const tag = close.estimatedAny ? "估算" : close.pendingAny ? "含待确认" : "官方";
+  const tag = close.pendingAny ? "含待确认" : "官方";
   const mode = collect.marketMode ?? "otc";
   const lines = [];
   lines.push(`# 收盘盈亏 ${collect.date}`);
@@ -32,13 +32,11 @@ function main() {
     lines.push("- 空仓");
   }
   for (const holding of close.holdings) {
-    const label = holding.estimated
-      ? "估算"
-      : holding.source === "官方净值"
-        ? "官方"
-        : holding.source === "收盘价"
-          ? "收盘"
-          : "参考";
+    const label = holding.source === "官方净值"
+      ? "官方"
+      : holding.source === "收盘价"
+        ? "收盘"
+        : "参考";
     lines.push(`- ${holding.name ?? holding.code}（${holding.code}）：${holding.shares} 份`);
     lines.push(`  昨净值 ${holding.prevNav}（${holding.prevNavDate ?? "-"}）→ 今${label} ${holding.nav}（${pct(holding.changePct)}）`);
     lines.push(`  市值 ${money(holding.value)} 元｜当日盈亏 ${signed(holding.dayPnl)} 元｜累计盈亏 ${signed(holding.pnl)} 元（${pct(holding.pnlPct)}）`);

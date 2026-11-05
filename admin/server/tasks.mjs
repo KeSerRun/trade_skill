@@ -141,7 +141,7 @@ export async function listTasks(db) {
   return tasks.map((task) => taskPayload(task, byId.get(task.id)));
 }
 
-function normalizeTask(db, input, current = null) {
+function normalizeTask(input, current = null) {
   const type = input.type ?? current?.type ?? "daily";
   if (!TYPE_META[type]) throw new Error("任务类型不合法");
   const time = String(input.time ?? current?.time ?? "").trim();
@@ -180,7 +180,7 @@ ${task.enabled ? "Enable-ScheduledTask -TaskName '" + escapePs(task.id) + "' | O
 }
 
 export async function createTask(db, input) {
-  const normalized = normalizeTask(db, input);
+  const normalized = normalizeTask(input);
   let id = `FundTask_${Date.now().toString(36)}`;
   while (getScheduledTask(db, id)) id = `FundTask_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
   const task = { id, ...normalized };
@@ -197,7 +197,7 @@ export async function createTask(db, input) {
 export async function updateTask(db, id, input) {
   const current = getScheduledTask(db, id);
   if (!current) throw new Error("计划任务不存在");
-  const normalized = normalizeTask(db, input, current);
+  const normalized = normalizeTask(input, current);
   await registerWindowsTask({ id, ...normalized });
   updateScheduledTask(db, id, normalized);
   return listTasks(db);
