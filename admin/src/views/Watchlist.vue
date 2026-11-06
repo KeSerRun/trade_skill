@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "../api";
+
+const router = useRouter();
 
 const lists = ref({ otc: [], exchange: [] });
 const loading = ref(false);
@@ -92,6 +95,10 @@ function openEdit(row) {
 
 function optionLabel(product) {
   return `${product.code} ${product.name}${product.category ? ` · ${product.category}` : ""}`;
+}
+
+function openView(row) {
+  router.push({ path: "/market", query: { market: row.market, code: row.code } });
 }
 
 async function loadProducts(query = "") {
@@ -240,8 +247,9 @@ async function remove(row) {
             </template>
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="70" align="right" />
-          <el-table-column label="操作" width="130" fixed="right">
+          <el-table-column label="操作" width="190" fixed="right">
             <template #default="{ row }">
+              <el-button link type="primary" @click="openView(row)">查看</el-button>
               <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
               <el-button link type="danger" @click="remove(row)">删除</el-button>
             </template>

@@ -11,6 +11,8 @@ admin/dist/
 # logs and temp files
 *.log
 *.tmp
+skills/fund-trading/runner/agent/prompt-*.md
+skills/fund-trading/runner/agent/result-*.txt
 
 # environment and credentials
 .env
