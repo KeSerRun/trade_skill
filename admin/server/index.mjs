@@ -16,6 +16,7 @@ import {
   listTrades,
   listWatchlist,
   openDb,
+  pnlSeries,
   setAccount,
   setAdviceSettings,
   setAppSettings,
@@ -430,6 +431,11 @@ const server = http.createServer(async (req, res) => {
 
     if (method === "GET" && pathname === "/api/state") {
       sendJson(res, 200, payload());
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/pnl") {
+      sendJson(res, 200, { ok: true, ...pnlSeries(db) });
       return;
     }
 

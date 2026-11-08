@@ -790,3 +790,66 @@ export function stateSummary(db) {
     },
   };
 }
+
+export function pnlSeries(db) {
+  const account = getAccount(db);
+  const current = stateSummary(db).summary;
+  const today = localDate();
+  const round2 = (value) => Math.round(value * 100) / 100;
+  const byDate = new Map();
+  for (const row of db.prepare("SELECT date, equity FROM equity_snapshots ORDER BY date").all()) {
+    if (row.date <= today) byDate.set(row.date, { date: row.date, equity: Number(row.equity) });
+  }
+  byDate.set(today, { date: today, equity: current.equity });
+
+  const daily = [];
+  let previous = account.initial_cash;
+  for (const item of [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))) {
+    const value = round2(item.equity - previous);
+    daily.push({
+      key: item.date,
+      label: item.date.slice(5),
+      date: item.date,
+      value,
+      pct: previous > 0 ? value / previous : 0,
+      equity: round2(item.equity),
+    });
+    previous = item.equity;
+  }
+
+  const months = new Map();
+  for (const item of byDate.values()) months.set(item.date.slice(0, 7), item);
+  const monthly = [];
+  previous = account.initial_cash;
+  for (const [month, item] of [...months.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const value = round2(item.equity - previous);
+    monthly.push({
+      key: month,
+      label: month,
+      date: month,
+      value,
+      pct: previous > 0 ? value / previous : 0,
+      equity: round2(item.equity),
+    });
+    previous = item.equity;
+  }
+
+  const years = new Map();
+  for (const item of byDate.values()) years.set(item.date.slice(0, 4), item);
+  const yearly = [];
+  previous = account.initial_cash;
+  for (const [year, item] of [...years.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const value = round2(item.equity - previous);
+    yearly.push({
+      key: year,
+      label: year,
+      date: year,
+      value,
+      pct: previous > 0 ? value / previous : 0,
+      equity: round2(item.equity),
+    });
+    previous = item.equity;
+  }
+
+  return { asOf: today, currentEquity: round2(current.equity), daily, monthly, yearly };
+}

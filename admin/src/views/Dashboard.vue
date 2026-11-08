@@ -1,6 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { ElMessage } from "element-plus";
 import { store, loadState, money, pct, signed } from "../store";
+import { api } from "../api";
 
 const palette = ["#4f6ef7", "#0ea5a4", "#8b5cf6", "#f59e0b", "#ef4444", "#14b8a6"];
 
@@ -63,6 +65,7 @@ const periodStats = computed(() => {
   return [
     {
       label: "日盈亏",
+      key: "day",
       value: signed(summary?.dayPnl ?? 0),
       pct: pct(summary?.dayPnlPct),
       base: summary?.dayBaseDate ? `较 ${summary.dayBaseDate}` : "较初始资金",
@@ -70,6 +73,7 @@ const periodStats = computed(() => {
     },
     {
       label: "月盈亏",
+      key: "month",
       value: signed(summary?.monthPnl ?? 0),
       pct: pct(summary?.monthPnlPct),
       base: summary?.monthBaseDate ? `较 ${summary.monthBaseDate}` : "较初始资金",
@@ -77,6 +81,7 @@ const periodStats = computed(() => {
     },
     {
       label: "年盈亏",
+      key: "year",
       value: signed(summary?.yearPnl ?? 0),
       pct: pct(summary?.yearPnlPct),
       base: summary?.yearBaseDate ? `较 ${summary.yearBaseDate}` : "较初始资金",
@@ -84,6 +89,40 @@ const periodStats = computed(() => {
     },
   ];
 });
+
+const pnlDialogVisible = ref(false);
+const pnlLoading = ref(false);
+const pnlPeriod = ref("daily");
+const pnlData = ref({ daily: [], monthly: [], yearly: [] });
+const pnlTabs = [
+  { key: "daily", label: "日" },
+  { key: "monthly", label: "月" },
+  { key: "yearly", label: "年" },
+];
+const pnlItems = computed(() => pnlData.value[pnlPeriod.value] ?? []);
+const pnlMax = computed(() => Math.max(1, ...pnlItems.value.map((item) => Math.abs(item.value))));
+const pnlPeriodLabel = computed(() => ({ daily: "每日盈亏", monthly: "每月盈亏", yearly: "每年盈亏" })[pnlPeriod.value]);
+
+function barStyle(item) {
+  const height = Math.max(1, (Math.abs(item.value) / pnlMax.value) * 48);
+  return {
+    height: `${height}%`,
+    [item.value >= 0 ? "bottom" : "top"]: "50%",
+  };
+}
+
+async function openPnlDetail(period) {
+  pnlPeriod.value = ({ day: "daily", month: "monthly", year: "yearly" })[period] ?? "daily";
+  pnlDialogVisible.value = true;
+  pnlLoading.value = true;
+  try {
+    pnlData.value = await api.pnl();
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    pnlLoading.value = false;
+  }
+}
 
 let refreshTimer = null;
 
@@ -125,7 +164,10 @@ onUnmounted(() => {
       </div>
       <div class="panel-body period-grid">
         <div v-for="item in periodStats" :key="item.label" class="period-card">
-          <div class="period-label">{{ item.label }}</div>
+          <div class="period-card-head">
+            <div class="period-label">{{ item.label }}</div>
+            <button type="button" class="period-more" @click="openPnlDetail(item.key)">详情</button>
+          </div>
           <strong class="period-value" :class="item.tone">{{ item.value }}</strong>
           <div class="period-meta">
             <span>{{ item.pct }}</span>
@@ -212,5 +254,72 @@ onUnmounted(() => {
       <span class="tip-chip">14:30 操作 · 15:30 收盘更新</span>
       <span class="tip-chip">数据源 SQLite 单库</span>
     </div>
+
+    <el-dialog
+      v-model="pnlDialogVisible"
+      title="盈亏详情"
+      class="pnl-dialog"
+      width="min(820px, 92vw)"
+    >
+      <div class="pnl-dialog-body" v-loading="pnlLoading">
+        <div class="pnl-tabs">
+          <button
+            v-for="tab in pnlTabs"
+            :key="tab.key"
+            type="button"
+            :class="{ active: pnlPeriod === tab.key }"
+            @click="pnlPeriod = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="pnl-chart-head">
+          <div>
+            <strong>{{ pnlPeriodLabel }}</strong>
+            <span>共 {{ pnlItems.length }} 个周期</span>
+          </div>
+          <span>当前总资产 ¥{{ money(pnlData.currentEquity) }}</span>
+        </div>
+
+        <div v-if="pnlItems.length" class="pnl-chart">
+          <div class="pnl-bars">
+            <div
+              v-for="item in pnlItems"
+              :key="item.key"
+              class="pnl-bar-col"
+              :title="`${item.label}  ${signed(item.value)}  ${pct(item.pct)}`"
+            >
+              <div class="pnl-bar-track">
+                <div
+                  class="pnl-bar"
+                  :class="item.value >= 0 ? 'up' : 'down'"
+                  :style="barStyle(item)"
+                ></div>
+              </div>
+              <span class="pnl-bar-label">{{ item.label }}</span>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="还没有盈亏快照" :image-size="80" />
+
+        <el-table :data="pnlItems" size="small" max-height="220" class="pnl-table">
+          <el-table-column prop="label" label="周期" width="110" />
+          <el-table-column label="盈亏" width="120" align="right">
+            <template #default="{ row }">
+              <span :class="row.value >= 0 ? 'positive' : 'negative'">{{ signed(row.value) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="收益率" width="100" align="right">
+            <template #default="{ row }">
+              <span :class="row.value >= 0 ? 'positive' : 'negative'">{{ pct(row.pct) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="期末总资产" min-width="120" align="right">
+            <template #default="{ row }">¥{{ money(row.equity) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>

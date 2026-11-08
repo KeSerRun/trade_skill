@@ -19,6 +19,7 @@ async function request(path, options = {}) {
 
 export const api = {
   state: () => request("/state"),
+  pnl: () => request("/pnl"),
   marketSnapshot: () => request("/market/snapshot"),
   marketTrend: (code) => request(`/market/trend?code=${encodeURIComponent(code)}`),
   marketCandles: (code, period = "day") =>

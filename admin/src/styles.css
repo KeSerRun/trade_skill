@@ -343,6 +343,26 @@ body {
   background: var(--surface-soft);
 }
 
+.period-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.period-more {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.period-more:hover {
+  text-decoration: underline;
+}
+
 .period-label {
   color: var(--text-3);
   font-size: 11px;
@@ -363,6 +383,120 @@ body {
   margin-top: 6px;
   color: var(--text-3);
   font-size: 10px;
+}
+
+.pnl-dialog .el-dialog__body {
+  padding-top: 8px;
+}
+
+.pnl-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--surface-soft);
+}
+
+.pnl-tabs button {
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pnl-tabs button.active {
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.pnl-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.pnl-chart-head strong {
+  margin-right: 8px;
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.pnl-chart {
+  padding: 10px 8px 0;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfcff, #f8fafc);
+}
+
+.pnl-bars {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  height: 220px;
+  overflow-x: auto;
+  padding: 10px 8px 0;
+}
+
+.pnl-bars::before {
+  content: "";
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  top: calc(50% - 5px);
+  border-top: 1px dashed #cbd5e1;
+}
+
+.pnl-bar-col {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 0 24px;
+  min-width: 24px;
+  flex-direction: column;
+}
+
+.pnl-bar-track {
+  position: relative;
+  flex: 1;
+}
+
+.pnl-bar {
+  position: absolute;
+  left: 20%;
+  width: 60%;
+  min-height: 1px;
+  border-radius: 3px 3px 0 0;
+}
+
+.pnl-bar.up {
+  background: #16a34a;
+}
+
+.pnl-bar.down {
+  border-radius: 0 0 3px 3px;
+  background: #ef4444;
+}
+
+.pnl-bar-label {
+  height: 20px;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 9px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pnl-table {
+  margin-top: 14px;
 }
 
 .main-grid {
