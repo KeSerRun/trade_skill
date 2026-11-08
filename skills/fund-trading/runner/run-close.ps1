@@ -60,6 +60,10 @@ if (-not (Test-Path $collectFile)) {
   exit 1
 }
 
+$skillScripts = Join-Path (Split-Path $PSScriptRoot -Parent) "scripts"
+$snapshotOutput = & $node (Join-Path $skillScripts "paper.mjs") snapshot --offline --json 2>> $logFile
+Log ("snapshot: " + (($snapshotOutput | Out-String).Trim()))
+
 $reportText = (& $node (Join-Path $PSScriptRoot "report-close.mjs") $collectFile) | Out-String
 $reportFile = Join-Path $reportDir "close-$Date.md"
 [System.IO.File]::WriteAllText($reportFile, $reportText, (New-Object System.Text.UTF8Encoding($false)))

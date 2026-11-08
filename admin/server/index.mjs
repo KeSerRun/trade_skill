@@ -3,6 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  backfillEquitySnapshots,
   deletePosition,
   deleteWatchlist,
   getAdviceSettings,
@@ -54,6 +55,8 @@ const port = Number(portFlag === true ? process.env.PORT || 8787 : portFlag || p
 const host = hostFlag === true ? "0.0.0.0" : hostFlag || process.env.HOST || "127.0.0.1";
 
 const db = openDb(dbPath);
+const backfilled = backfillEquitySnapshots(db, path.join(stateDir, "collect"));
+if (backfilled) console.log(`backfilled ${backfilled} equity snapshots`);
 const market = createMarket(db);
 await ensureTaskActions(db).catch((error) => console.error("task action sync failed:", error.message));
 

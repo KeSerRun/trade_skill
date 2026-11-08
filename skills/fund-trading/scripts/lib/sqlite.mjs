@@ -144,6 +144,9 @@ function ensureSchema(handle) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    DELETE FROM equity_snapshots
+    WHERE id NOT IN (SELECT MAX(id) FROM equity_snapshots GROUP BY date);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_equity_snapshots_date ON equity_snapshots(date);
   `);
 }
 
@@ -310,7 +313,7 @@ export function saveOrdersToDb(orders) {
 export function appendEquitySnapshotToDb(record) {
   getDb()
     .prepare(
-      "INSERT INTO equity_snapshots (date, at, equity, cash, position_value, total_pnl) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT OR REPLACE INTO equity_snapshots (date, at, equity, cash, position_value, total_pnl) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .run(record.date, record.at, record.equity, record.cash, record.positionValue, record.totalPnl);
 }

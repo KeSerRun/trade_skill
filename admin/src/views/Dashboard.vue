@@ -58,6 +58,33 @@ const stats = computed(() => {
   ];
 });
 
+const periodStats = computed(() => {
+  const summary = store.summary;
+  return [
+    {
+      label: "日盈亏",
+      value: signed(summary?.dayPnl ?? 0),
+      pct: pct(summary?.dayPnlPct),
+      base: summary?.dayBaseDate ? `较 ${summary.dayBaseDate}` : "较初始资金",
+      tone: (summary?.dayPnl ?? 0) >= 0 ? "positive" : "negative",
+    },
+    {
+      label: "月盈亏",
+      value: signed(summary?.monthPnl ?? 0),
+      pct: pct(summary?.monthPnlPct),
+      base: summary?.monthBaseDate ? `较 ${summary.monthBaseDate}` : "较初始资金",
+      tone: (summary?.monthPnl ?? 0) >= 0 ? "positive" : "negative",
+    },
+    {
+      label: "年盈亏",
+      value: signed(summary?.yearPnl ?? 0),
+      pct: pct(summary?.yearPnlPct),
+      base: summary?.yearBaseDate ? `较 ${summary.yearBaseDate}` : "较初始资金",
+      tone: (summary?.yearPnl ?? 0) >= 0 ? "positive" : "negative",
+    },
+  ];
+});
+
 let refreshTimer = null;
 
 onMounted(() => {
@@ -88,6 +115,25 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <section class="panel period-panel">
+      <div class="panel-head">
+        <div>
+          <h3>盈亏统计</h3>
+          <p>按每日总资产快照计算；没有历史快照时以初始资金为基线</p>
+        </div>
+      </div>
+      <div class="panel-body period-grid">
+        <div v-for="item in periodStats" :key="item.label" class="period-card">
+          <div class="period-label">{{ item.label }}</div>
+          <strong class="period-value" :class="item.tone">{{ item.value }}</strong>
+          <div class="period-meta">
+            <span>{{ item.pct }}</span>
+            <span>{{ item.base }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="main-grid">
       <section class="panel">

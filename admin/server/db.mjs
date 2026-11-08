@@ -167,6 +167,9 @@ function migrate(db) {
       title_prefix TEXT NOT NULL DEFAULT '基金日报',
       updated_at TEXT NOT NULL
     );
+    DELETE FROM equity_snapshots
+    WHERE id NOT IN (SELECT MAX(id) FROM equity_snapshots GROUP BY date);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_equity_snapshots_date ON equity_snapshots(date);
   `);
 }
 
@@ -669,6 +672,49 @@ export function setRules(db, rules) {
   ).run(p.maxSinglePositionPct, p.maxTotalPositionPct, p.minCashReservePct, p.maxOrderAmount, now());
 }
 
+function localDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function backfillEquitySnapshots(db, collectDir) {
+  if (!fs.existsSync(collectDir)) return 0;
+  const account = getAccount(db);
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO equity_snapshots (date, at, equity, cash, position_value, total_pnl)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  let inserted = 0;
+  for (const name of fs.readdirSync(collectDir)) {
+    const match = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(name);
+    if (!match) continue;
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(path.join(collectDir, name), "utf8"));
+    } catch {
+      continue;
+    }
+    const point = data.close ?? data.account;
+    if (!point || point.equity === null || point.equity === undefined) continue;
+    const equity = Number(point.equity);
+    const cash = Number(point.cash ?? 0);
+    const positionValue = Number(point.positionValue ?? equity - cash);
+    if (!Number.isFinite(equity) || !Number.isFinite(cash) || !Number.isFinite(positionValue)) continue;
+    const at = data.generatedAt ?? fs.statSync(path.join(collectDir, name)).mtime.toISOString();
+    inserted += insert.run(
+      data.date ?? match[1],
+      at,
+      equity,
+      cash,
+      positionValue,
+      equity - account.initial_cash,
+    ).changes;
+  }
+  return inserted;
+}
+
 export function stateSummary(db) {
   const account = getAccount(db);
   const positions = listPositions(db).map((row) => {
@@ -686,6 +732,30 @@ export function stateSummary(db) {
   const equity = account.cash + positionValue;
   const unrealizedPnl = positions.reduce((sum, row) => sum + row.pnl, 0);
   const cost = positions.reduce((sum, row) => sum + row.cost, 0);
+  const today = localDate();
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const yearStart = `${today.slice(0, 4)}-01-01`;
+  const previous = db
+    .prepare("SELECT date, equity FROM equity_snapshots WHERE date < ? ORDER BY date DESC LIMIT 1")
+    .get(today);
+  const monthBase = db
+    .prepare("SELECT date, equity FROM equity_snapshots WHERE date < ? ORDER BY date DESC LIMIT 1")
+    .get(monthStart);
+  const yearBase = db
+    .prepare("SELECT date, equity FROM equity_snapshots WHERE date < ? ORDER BY date DESC LIMIT 1")
+    .get(yearStart);
+  const period = (base) => {
+    const baseline = base?.equity ?? account.initial_cash;
+    const pnl = equity - baseline;
+    return {
+      pnl,
+      pnlPct: baseline > 0 ? pnl / baseline : 0,
+      baseDate: base?.date ?? null,
+    };
+  };
+  const day = period(previous);
+  const month = period(monthBase);
+  const year = period(yearBase);
   return {
     account: {
       initialCash: account.initial_cash,
@@ -706,6 +776,15 @@ export function stateSummary(db) {
       realizedPnl: account.realized_pnl,
       totalPnl: equity - account.initial_cash,
       totalPnlPct: account.initial_cash > 0 ? (equity - account.initial_cash) / account.initial_cash : 0,
+      dayPnl: day.pnl,
+      dayPnlPct: day.pnlPct,
+      dayBaseDate: day.baseDate,
+      monthPnl: month.pnl,
+      monthPnlPct: month.pnlPct,
+      monthBaseDate: month.baseDate,
+      yearPnl: year.pnl,
+      yearPnlPct: year.pnlPct,
+      yearBaseDate: year.baseDate,
       cashPct: equity > 0 ? account.cash / equity : 0,
       investedPct: equity > 0 ? positionValue / equity : 0,
     },
