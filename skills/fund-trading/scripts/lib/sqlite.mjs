@@ -64,6 +64,7 @@ function ensureSchema(handle) {
       payload TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    DROP TABLE IF EXISTS meta;
     CREATE TABLE IF NOT EXISTS equity_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
@@ -129,10 +130,6 @@ function ensureSchema(handle) {
       pushplus_token TEXT,
       title_prefix TEXT NOT NULL DEFAULT '基金日报',
       updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT
     );
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
       id TEXT PRIMARY KEY,
@@ -333,11 +330,6 @@ export function saveVerdictToDb(verdict) {
       "INSERT INTO news_verdicts (code, payload, scanned_at) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET payload = excluded.payload, scanned_at = excluded.scanned_at",
     )
     .run(String(verdict.code), JSON.stringify(verdict), verdict.scannedAt);
-}
-
-export function loadMarketMode() {
-  const row = getDb().prepare("SELECT value FROM meta WHERE key = 'market_mode'").get();
-  return row?.value === "exchange" ? "exchange" : "otc";
 }
 
 export function loadWatchlist(market) {

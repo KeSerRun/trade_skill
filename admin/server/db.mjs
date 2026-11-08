@@ -82,15 +82,12 @@ function migrate(db) {
       max_order_amount REAL NOT NULL,
       updated_at TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    );
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    DROP TABLE IF EXISTS meta;
     CREATE TABLE IF NOT EXISTS equity_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
@@ -236,8 +233,7 @@ function seed(db) {
     insertProduct.run("index", item.code, item.name, item.category, item.type, now());
   }
 
-  const modeRow = db.prepare("SELECT value FROM meta WHERE key = 'market_mode'").get();
-  const defaultMarket = modeRow?.value === "exchange" ? "exchange" : "otc";
+  const defaultMarket = "otc";
   const insertTask = db.prepare(
     `INSERT OR IGNORE INTO scheduled_tasks (id, name, type, time, market, enabled, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,

@@ -149,7 +149,6 @@ powershell -ExecutionPolicy Bypass -File skills\fund-trading\runner\run-daily.ps
 | `watchlist` | 场外 / 场内候选基金、搜索词、启用和排序 |
 | `products` | 全市场基金 / ETF 产品主表，按市场和代码唯一 |
 | `scheduled_tasks` | 定时任务注册表：名称、类型、时间、市场、启用状态 |
-| `meta` | 当前市场模式 `market_mode` 等键值 |
 | `app_settings` | 自动记账、搜索词数、轮数、模型等运行参数 |
 | `advice_settings` | 买入/卖出立场、阈值、仓位、止损止盈 |
 | `notify_settings` | 推送通道、Webhook / Key、标题前缀 |

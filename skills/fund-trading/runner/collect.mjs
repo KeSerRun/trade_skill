@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadAppSettings, loadMarketMode, loadWatchlist } from "../scripts/lib/sqlite.mjs";
+import { loadAppSettings, loadWatchlist } from "../scripts/lib/sqlite.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = process.env.FUND_TRADE_PROJECT_ROOT
@@ -125,7 +125,7 @@ async function main() {
   const held = account.ok ? (account.holdings ?? []).map((h) => h.code) : [];
   const marketMode = ["otc", "exchange"].includes(process.env.FUND_TRADE_MARKET)
     ? process.env.FUND_TRADE_MARKET
-    : loadMarketMode();
+    : "otc";
   const dbWatchlist = loadWatchlist(marketMode);
   const configured = dbWatchlist.map(normalizeWatchlist);
   const byCode = new Map();
